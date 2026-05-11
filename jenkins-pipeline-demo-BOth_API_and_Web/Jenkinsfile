@@ -19,11 +19,13 @@ pipeline {
                 bat '''
                 if exist results rmdir /s /q results
                 if exist report rmdir /s /q report
+                if exist artifacts rmdir /s /q artifacts
 
                 mkdir results
                 mkdir report
                 mkdir report\\api
                 mkdir report\\web
+                mkdir artifacts
                 '''
             }
         }
@@ -53,12 +55,27 @@ pipeline {
             }
         }
 
-        stage('Generate HTML Reports') {
+        stage('Generate Separate HTML Reports') {
             steps {
-                bat """
+                bat '''
+                if exist report\\api rmdir /s /q report\\api
+                if exist report\\web rmdir /s /q report\\web
+
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
-                """
+                '''
+            }
+        }
+
+        stage('Archive Reports for Email') {
+            steps {
+                bat '''
+                mkdir artifacts\\API_Report
+                mkdir artifacts\\WEB_Report
+
+                xcopy /E /I report\\api artifacts\\API_Report
+                xcopy /E /I report\\web artifacts\\WEB_Report
+                '''
             }
         }
 
@@ -89,20 +106,26 @@ pipeline {
     post {
         always {
 
-            archiveArtifacts artifacts: 'results/*.jtl, report/**/*', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl, artifacts/**/*', fingerprint: true
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "Jenkins Report: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
                 Build Status: ${currentBuild.currentResult}
 
-                ✔ API Test Executed
-                ✔ WEB Test Executed
-                ✔ HTML Reports Generated
+                ✔ API Test Completed
+                ✔ WEB Test Completed
+                ✔ Reports Generated
 
-                Check Jenkins UI for detailed reports.
-                """
+                📁 Attached Folders:
+                - API_Report
+                - WEB_Report
+
+                Check Jenkins UI for HTML dashboards.
+                """,
+
+                attachmentsPattern: 'artifacts/**/*.html, artifacts/**/*.css, artifacts/**/*.js'
             )
         }
     }
