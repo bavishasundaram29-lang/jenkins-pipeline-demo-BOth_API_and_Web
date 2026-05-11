@@ -4,13 +4,13 @@ pipeline {
     environment {
         JMETER_HOME = "C:\\Apache\\apache-jmeter-5.6.3"
         RESULTS_DIR = "results"
-        REPORT_DIR_API = "report_api"
-        REPORT_DIR_WEB = "report_web"
+        REPORT_API = "report_api"
+        REPORT_WEB = "report_web"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main',
                 url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
@@ -20,10 +20,12 @@ pipeline {
         stage('Run API Test') {
             steps {
                 bat """
+                mkdir %REPORT_API%
                 mkdir %RESULTS_DIR%\\api
+
                 jmeter -n -t api_test.jmx ^
                 -l %RESULTS_DIR%\\api\\api.jtl ^
-                -e -o %REPORT_DIR_API%
+                -e -o %REPORT_API%
                 """
             }
         }
@@ -31,32 +33,44 @@ pipeline {
         stage('Run Web Test') {
             steps {
                 bat """
+                mkdir %REPORT_WEB%
                 mkdir %RESULTS_DIR%\\web
+
                 jmeter -n -t web_test.jmx ^
                 -l %RESULTS_DIR%\\web\\web.jtl ^
-                -e -o %REPORT_DIR_WEB%
+                -e -o %REPORT_WEB%
                 """
             }
         }
 
         stage('Archive Reports') {
             steps {
-                archiveArtifacts artifacts: '**/report_api/**, **/report_web/**, **/results/**', fingerprint: true
+                archiveArtifacts artifacts: '''
+                    report_api/**,
+                    report_web/**,
+                    results/**
+                ''', fingerprint: true
             }
         }
 
-        stage('Publish Jenkins UI Report') {
+        stage('Publish HTML Reports (Jenkins UI)') {
             steps {
                 publishHTML([
                     reportDir: 'report_api',
                     reportFiles: 'index.html',
-                    reportName: 'API HTML Report'
+                    reportName: 'API HTML Report',
+                    keepAll: true,
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true
                 ])
 
                 publishHTML([
                     reportDir: 'report_web',
                     reportFiles: 'index.html',
-                    reportName: 'Web HTML Report'
+                    reportName: 'Web HTML Report',
+                    keepAll: true,
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true
                 ])
             }
         }
@@ -64,28 +78,26 @@ pipeline {
 
     post {
         always {
-
             emailext (
-                subject: "Jenkins Build Report - API & Web Tests",
+                subject: "Jenkins API & Web Test Report - Build ${env.BUILD_NUMBER}",
                 body: """
                 Hi Team,
 
-                Please find attached API and Web test reports.
+                Please find attached the API and Web JMeter HTML reports.
 
-                Jenkins Build: ${env.BUILD_NUMBER}
+                Build Number: ${env.BUILD_NUMBER}
+                Status: ${currentBuild.currentResult}
 
                 Regards,
                 Jenkins
                 """,
-                
                 to: "yourmail@gmail.com",
+                mimeType: 'text/html',
 
-                attachmentsPattern: """
+                attachmentsPattern: '''
                     report_api/index.html,
                     report_web/index.html
-                """,
-
-                mimeType: 'text/html'
+                '''
             )
         }
     }
