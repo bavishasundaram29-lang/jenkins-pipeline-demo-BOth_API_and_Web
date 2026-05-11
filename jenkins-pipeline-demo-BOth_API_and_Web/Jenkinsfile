@@ -3,6 +3,7 @@ pipeline {
 
     environment {
         JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+        REPO_DIR = "jenkins-pipeline-demo-BOth_API_and_Web"
     }
 
     stages {
@@ -11,18 +12,6 @@ pipeline {
             steps {
                 git branch: 'main',
                 url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
-            }
-        }
-
-        stage('Debug Workspace') {
-            steps {
-                bat '''
-                echo FULL WORKSPACE STRUCTURE:
-                dir
-
-                echo INSIDE REPO:
-                dir jenkins-pipeline-demo-BOth_API_and_Web
-                '''
             }
         }
 
@@ -41,14 +30,14 @@ pipeline {
             }
         }
 
-        stage('Run API + Web Parallel') {
+        stage('Run API + Web Tests (Parallel)') {
             parallel {
 
                 stage('API Test') {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx ^
+                        -t %REPO_DIR%\\api\\api_script.jmx ^
                         -l results\\api.jtl
                         """
                     }
@@ -58,7 +47,7 @@ pipeline {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx ^
+                        -t %REPO_DIR%\\web\\SCR01_Jpetstore.jmx ^
                         -l results\\web.jtl
                         """
                     }
@@ -66,7 +55,7 @@ pipeline {
             }
         }
 
-        stage('Generate Reports') {
+        stage('Generate HTML Reports') {
             steps {
                 bat '''
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
@@ -87,23 +76,25 @@ pipeline {
     post {
 
         always {
-            publishHTML (target: [
+            publishHTML([
                 reportDir: 'report\\final',
                 reportFiles: 'index.html',
-                reportName: 'JMeter Final Report'
+                reportName: 'JMeter Final Report',
+                keepAll: true,
+                allowMissing: false
             ])
         }
 
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + WEB",
+                subject: "Jenkins SUCCESS - API + WEB JMeter Report",
                 body: """
 Build SUCCESS
 
-✔ API executed
-✔ Web executed
-✔ Reports generated
+✔ API Test Passed
+✔ Web Test Passed
+✔ HTML Report Generated
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
@@ -114,11 +105,11 @@ Build: ${env.BUILD_NUMBER}
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED",
+                subject: "Jenkins FAILED - API + WEB",
                 body: """
 Build FAILED
 
-Check Jenkins logs.
+Check Jenkins console logs.
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
