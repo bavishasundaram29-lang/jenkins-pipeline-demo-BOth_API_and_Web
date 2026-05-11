@@ -1,4 +1,3 @@
-```groovy
 pipeline {
     agent any
 
@@ -44,7 +43,7 @@ pipeline {
         stage('Generate HTML Report') {
             steps {
                 bat '''
-                rmdir /s /q reports
+                if exist reports rmdir /s /q reports
                 jmeter -g final_result.jtl -o reports
                 '''
             }
@@ -92,4 +91,3 @@ pipeline {
         }
     }
 }
-```
