@@ -3,6 +3,12 @@ pipeline {
 
     stages {
 
+        stage('Clean Workspace') {
+            steps {
+                cleanWs()
+            }
+        }
+
         stage('Checkout') {
             steps {
                 git branch: 'main',
@@ -10,7 +16,7 @@ pipeline {
             }
         }
 
-        stage('Run Tests') {
+        stage('Run API & Web Tests') {
             steps {
                 bat '''
                 jmeter -n -t jenkins-pipeline-demo-BOth_API_and_Web.jmx ^
@@ -44,17 +50,17 @@ pipeline {
 
             emailext (
                 subject: "SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: "Build successful. Check Jenkins report.",
+                body: "Build successful.\n\nCheck Jenkins UI for report or download artifacts.",
                 to: "bavishasundaram@gmail.com"
             )
         }
 
         failure {
-            echo 'Build Failed'
+            echo 'Build Failed - Check Logs'
 
             emailext (
                 subject: "FAILED - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: "Build failed. Check logs.",
+                body: "Build failed. Check Jenkins console logs.",
                 to: "bavishasundaram@gmail.com"
             )
         }
