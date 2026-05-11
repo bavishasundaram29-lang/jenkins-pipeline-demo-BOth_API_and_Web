@@ -70,15 +70,6 @@ pipeline {
             }
         }
 
-        stage('Prepare Email Artifacts (ZIP Reports)') {
-            steps {
-                bat '''
-                powershell Compress-Archive -Path report\\api\\* -DestinationPath artifacts\\API_Report.zip -Force
-                powershell Compress-Archive -Path report\\web\\* -DestinationPath artifacts\\WEB_Report.zip -Force
-                '''
-            }
-        }
-
         stage('Publish Reports in Jenkins UI') {
             steps {
 
@@ -101,25 +92,37 @@ pipeline {
                 ])
             }
         }
+
+        stage('Prepare Email Folders') {
+            steps {
+                bat '''
+                mkdir artifacts\\API_Report
+                mkdir artifacts\\WEB_Report
+
+                xcopy /E /I report\\api artifacts\\API_Report
+                xcopy /E /I report\\web artifacts\\WEB_Report
+                '''
+            }
+        }
     }
 
     post {
         always {
 
-            archiveArtifacts artifacts: 'results/*.jtl, artifacts/*.zip', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl, artifacts/**/*', fingerprint: true
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins Report - Build ${env.BUILD_NUMBER}",
+                subject: "Jenkins Build ${env.BUILD_NUMBER}",
                 body: """
 Build Status: ${currentBuild.currentResult}
 
-✔ API Report attached
-✔ WEB Report attached
+✔ API Report Folder attached
+✔ WEB Report Folder attached
 
-Check Jenkins UI for full HTML dashboards.
+Check Jenkins UI for full reports.
 """,
-                attachmentsPattern: 'artifacts/API_Report.zip, artifacts/WEB_Report.zip'
+                attachmentsPattern: 'artifacts/API_Report/**/*, artifacts/WEB_Report/**/*'
             )
         }
     }
