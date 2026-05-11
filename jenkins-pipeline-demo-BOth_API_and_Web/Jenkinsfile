@@ -22,10 +22,12 @@ pipeline {
                 rmdir /s /q results 2>nul
                 rmdir /s /q report 2>nul
                 rmdir /s /q zipreport 2>nul
+                rmdir /s /q aggregate 2>nul
 
                 mkdir results
                 mkdir report
                 mkdir zipreport
+                mkdir aggregate
                 '''
             }
         }
@@ -72,6 +74,79 @@ pipeline {
             }
         }
 
+        stage('Generate Aggregate Dashboard') {
+            steps {
+
+                powershell '''
+                # WEB Aggregate
+                $webCsv = Import-Csv "results\\web.jtl"
+
+                $webTotal = $webCsv.Count
+                $webPass = ($webCsv | Where-Object {$_.success -eq "true"}).Count
+                $webFail = ($webCsv | Where-Object {$_.success -eq "false"}).Count
+                $webAvg = [math]::Round((($webCsv.elapsed | Measure-Object -Average).Average),2)
+
+                # API Aggregate
+                $apiCsv = Import-Csv "results\\api.jtl"
+
+                $apiTotal = $apiCsv.Count
+                $apiPass = ($apiCsv | Where-Object {$_.success -eq "true"}).Count
+                $apiFail = ($apiCsv | Where-Object {$_.success -eq "false"}).Count
+                $apiAvg = [math]::Round((($apiCsv.elapsed | Measure-Object -Average).Average),2)
+
+                # WEB HTML TABLE
+                $webHtml = @"
+                <html>
+                <body>
+                <h2>WEB Aggregate Report</h2>
+                <table border='1' cellpadding='5' cellspacing='0'>
+                    <tr>
+                        <th>Total Samples</th>
+                        <th>Passed</th>
+                        <th>Failed</th>
+                        <th>Average Response Time(ms)</th>
+                    </tr>
+                    <tr>
+                        <td>$webTotal</td>
+                        <td>$webPass</td>
+                        <td>$webFail</td>
+                        <td>$webAvg</td>
+                    </tr>
+                </table>
+                </body>
+                </html>
+"@
+
+                $webHtml | Out-File aggregate\\web_aggregate.html
+
+                # API HTML TABLE
+                $apiHtml = @"
+                <html>
+                <body>
+                <h2>API Aggregate Report</h2>
+                <table border='1' cellpadding='5' cellspacing='0'>
+                    <tr>
+                        <th>Total Samples</th>
+                        <th>Passed</th>
+                        <th>Failed</th>
+                        <th>Average Response Time(ms)</th>
+                    </tr>
+                    <tr>
+                        <td>$apiTotal</td>
+                        <td>$apiPass</td>
+                        <td>$apiFail</td>
+                        <td>$apiAvg</td>
+                    </tr>
+                </table>
+                </body>
+                </html>
+"@
+
+                $apiHtml | Out-File aggregate\\api_aggregate.html
+                '''
+            }
+        }
+
         stage('Verify Reports') {
             steps {
                 bat '''
@@ -81,19 +156,8 @@ pipeline {
                 echo ================= API REPORT =================
                 dir report\\api
 
-                if exist report\\web\\index.html (
-                    echo WEB Report Generated
-                ) else (
-                    echo WEB Report Failed
-                    exit /b 1
-                )
-
-                if exist report\\api\\index.html (
-                    echo API Report Generated
-                ) else (
-                    echo API Report Failed
-                    exit /b 1
-                )
+                echo ================= AGGREGATE REPORT =================
+                dir aggregate
                 '''
             }
         }
@@ -106,15 +170,6 @@ pipeline {
 
                 Compress-Archive -Path report\\api\\* `
                 -DestinationPath zipreport\\API_Report.zip -Force
-                '''
-            }
-        }
-
-        stage('Verify ZIP Reports') {
-            steps {
-                bat '''
-                echo ================= ZIP REPORTS =================
-                dir zipreport
                 '''
             }
         }
@@ -139,6 +194,24 @@ pipeline {
                     reportFiles: 'index.html',
                     reportName: 'API_HTML_Report'
                 ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'aggregate',
+                    reportFiles: 'web_aggregate.html',
+                    reportName: 'WEB_Aggregate_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'aggregate',
+                    reportFiles: 'api_aggregate.html',
+                    reportName: 'API_Aggregate_Report'
+                ])
             }
         }
     }
@@ -147,35 +220,61 @@ pipeline {
 
         success {
 
-            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip,aggregate/*.html', fingerprint: true
 
-            emailext(
-                to: 'bavishasundar@gmail.com',
+            script {
 
-                subject: "JMeter WEB & API Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
+                def webTable = readFile('aggregate/web_aggregate.html')
+                def apiTable = readFile('aggregate/api_aggregate.html')
 
-                body: """
-Build Status: SUCCESS
+                emailext(
+                    to: 'bavishasundar@gmail.com',
 
-================ WEB REPORT =================
-${env.BUILD_URL}WEB_HTML_Report/
+                    subject: "JMeter WEB & API Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
 
-================ API REPORT =================
-${env.BUILD_URL}API_HTML_Report/
+                    mimeType: 'text/html',
 
-================ DOWNLOAD ZIP FILES =================
+                    body: """
+                    <h2>Build Status : SUCCESS</h2>
 
-WEB ZIP:
-${env.BUILD_URL}artifact/zipreport/WEB_Report.zip
+                    <h3>WEB HTML REPORT</h3>
+                    <a href="${env.BUILD_URL}WEB_HTML_Report/">Open WEB Report</a>
 
-API ZIP:
-${env.BUILD_URL}artifact/zipreport/API_Report.zip
-                """,
+                    <br><br>
 
-                mimeType: 'text/plain',
+                    <h3>API HTML REPORT</h3>
+                    <a href="${env.BUILD_URL}API_HTML_Report/">Open API Report</a>
 
-                attachmentsPattern: 'zipreport/*.zip'
-            )
+                    <br><br>
+
+                    <h2>WEB Aggregate Summary</h2>
+                    ${webTable}
+
+                    <br><br>
+
+                    <h2>API Aggregate Summary</h2>
+                    ${apiTable}
+
+                    <br><br>
+
+                    <h3>Download ZIP Reports</h3>
+
+                    WEB ZIP:
+                    <a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
+                    Download WEB ZIP
+                    </a>
+
+                    <br><br>
+
+                    API ZIP:
+                    <a href="${env.BUILD_URL}artifact/zipreport/API_Report.zip">
+                    Download API ZIP
+                    </a>
+                    """,
+
+                    attachmentsPattern: 'zipreport/*.zip'
+                )
+            }
         }
 
         failure {
