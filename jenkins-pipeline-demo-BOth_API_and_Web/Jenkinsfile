@@ -17,6 +17,8 @@ pipeline {
         stage('Clean Workspace') {
             steps {
                 bat '''
+                echo Cleaning workspace...
+
                 rmdir /s /q results 2>nul
                 rmdir /s /q report 2>nul
                 rmdir /s /q zipreport 2>nul
@@ -28,12 +30,29 @@ pipeline {
             }
         }
 
+        stage('Verify Files') {
+            steps {
+                bat '''
+                echo ================= WEB FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
+
+                echo ================= API FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
+                '''
+            }
+        }
+
         stage('Run WEB Test') {
             steps {
                 bat """
+                echo Running WEB Test...
+
                 %JMETER_HOME%\\bin\\jmeter.bat -n ^
                 -t jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx ^
-                -l results\\web.jtl
+                -l results\\web.jtl ^
+                -e -o report\\web
+
+                echo WEB Test Completed
                 """
             }
         }
@@ -41,21 +60,14 @@ pipeline {
         stage('Run API Test') {
             steps {
                 bat """
+                echo Running API Test...
+
                 %JMETER_HOME%\\bin\\jmeter.bat -n ^
                 -t jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx ^
-                -l results\\api.jtl
-                """
-            }
-        }
+                -l results\\api.jtl ^
+                -e -o report\\api
 
-        stage('Generate Reports') {
-            steps {
-                bat """
-                echo Generating WEB Report...
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
-
-                echo Generating API Report...
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
+                echo API Test Completed
                 """
             }
         }
@@ -68,6 +80,20 @@ pipeline {
 
                 echo ================= API REPORT =================
                 dir report\\api
+
+                if exist report\\web\\index.html (
+                    echo WEB Report Generated
+                ) else (
+                    echo WEB Report Failed
+                    exit /b 1
+                )
+
+                if exist report\\api\\index.html (
+                    echo API Report Generated
+                ) else (
+                    echo API Report Failed
+                    exit /b 1
+                )
                 '''
             }
         }
@@ -75,10 +101,10 @@ pipeline {
         stage('Create ZIP Reports') {
             steps {
                 powershell '''
-                Compress-Archive -Path report\\web `
+                Compress-Archive -Path report\\web\\* `
                 -DestinationPath zipreport\\WEB_Report.zip -Force
 
-                Compress-Archive -Path report\\api `
+                Compress-Archive -Path report\\api\\* `
                 -DestinationPath zipreport\\API_Report.zip -Force
                 '''
             }
@@ -88,13 +114,12 @@ pipeline {
             steps {
                 bat '''
                 echo ================= ZIP REPORTS =================
-
                 dir zipreport
                 '''
             }
         }
 
-        stage('Publish Reports') {
+        stage('Publish Reports in Jenkins UI') {
             steps {
 
                 publishHTML([
@@ -127,22 +152,18 @@ pipeline {
             emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "WEB & API JMeter Report - SUCCESS - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter WEB & API Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: SUCCESS
 
-WEB and API Reports Generated Successfully.
-
-================ REPORT LINKS ================
-
-WEB HTML Report:
+================ WEB REPORT =================
 ${env.BUILD_URL}WEB_HTML_Report/
 
-API HTML Report:
+================ API REPORT =================
 ${env.BUILD_URL}API_HTML_Report/
 
-================ ZIP DOWNLOAD LINKS ================
+================ DOWNLOAD ZIP FILES =================
 
 WEB ZIP:
 ${env.BUILD_URL}artifact/zipreport/WEB_Report.zip
@@ -151,7 +172,9 @@ API ZIP:
 ${env.BUILD_URL}artifact/zipreport/API_Report.zip
                 """,
 
-                mimeType: 'text/plain'
+                mimeType: 'text/plain',
+
+                attachmentsPattern: 'zipreport/*.zip'
             )
         }
 
@@ -160,12 +183,13 @@ ${env.BUILD_URL}artifact/zipreport/API_Report.zip
             emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "WEB & API JMeter Report - FAILURE - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter WEB & API Reports - FAILURE - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: FAILURE
 
-Please check Jenkins Console Output.
+Check Jenkins Console Output:
+${env.BUILD_URL}console
                 """
             )
         }
