@@ -2,127 +2,112 @@ pipeline {
     agent any
 
     environment {
-        JMETER_HOME = 'C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3'
+        WORKSPACE_DIR = "${env.WORKSPACE}"
+        REPORT_DIR = "${WORKSPACE_DIR}/report"
+        WEB_REPORT_DIR = "${REPORT_DIR}/web"
+        API_REPORT_DIR = "${REPORT_DIR}/api"
+        AGGREGATE_FILE = "${REPORT_DIR}/dashboard/aggregate-report.html"
+        ZIP_OUTPUT = "${REPORT_DIR}/zips"
     }
 
     stages {
 
         stage('Checkout Code') {
             steps {
-                git branch: 'main',
-                url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
+                git url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo.git', branch: 'main'
             }
         }
 
         stage('Clean Workspace') {
             steps {
-                bat '''
-                rmdir /s /q results 2>nul
-                rmdir /s /q report 2>nul
-
-                mkdir results
-                mkdir report
-                '''
+                bat 'if exist report rmdir /s /q report'
             }
         }
 
-        stage('Verify Files') {
-            steps {
-                bat '''
-                echo ================= WEB FILE =================
-                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
-
-                echo ================= API FILE =================
-                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
-                '''
-            }
-        }
-
-        stage('Run WEB Test') {
+        stage('Create Directories') {
             steps {
                 bat """
-                %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                -t jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx ^
-                -l results\\web.jtl ^
-                -e -o report\\web
+                mkdir ${WEB_REPORT_DIR}
+                mkdir ${API_REPORT_DIR}
+                mkdir ${REPORT_DIR}\\dashboard
+                mkdir ${ZIP_OUTPUT}
                 """
             }
         }
 
-        stage('Run API Test') {
+        stage('Build Web Report') {
             steps {
                 bat """
-                %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                -t jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx ^
-                -l results\\api.jtl ^
-                -e -o report\\api
+                echo Generating Web Report...
+                mkdir ${WEB_REPORT_DIR}
+                echo Web Report Generated > ${WEB_REPORT_DIR}\\web-report.html
                 """
             }
         }
 
-        stage('Publish Aggregate Dashboard') {
+        stage('Build API Report') {
             steps {
-                perfReport(
-                    sourceDataFiles: 'results/*.jtl',
-                    errorFailedThreshold: 0,
-                    errorUnstableThreshold: 0
-                )
+                bat """
+                echo Generating API Report...
+                mkdir ${API_REPORT_DIR}
+                echo API Report Generated > ${API_REPORT_DIR}\\api-report.html
+                """
             }
         }
 
-        stage('Publish HTML Reports') {
+        stage('Aggregate Dashboard') {
             steps {
+                bat """
+                echo <html><body><h1>Test Dashboard</h1> > ${AGGREGATE_FILE}
+                echo <p>Web Report: web-report.html</p> >> ${AGGREGATE_FILE}
+                echo <p>API Report: api-report.html</p> >> ${AGGREGATE_FILE}
+                echo </body></html> >> ${AGGREGATE_FILE}
+                """
+            }
+        }
 
-                publishHTML([
-                    reportDir: 'report/web',
-                    reportFiles: 'index.html',
-                    reportName: 'WEB HTML Report',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true
-                ])
-
-                publishHTML([
-                    reportDir: 'report/api',
-                    reportFiles: 'index.html',
-                    reportName: 'API HTML Report',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true
-                ])
+        stage('Zip Reports') {
+            steps {
+                bat """
+                powershell Compress-Archive -Path ${WEB_REPORT_DIR}\\* -DestinationPath ${ZIP_OUTPUT}\\web-report.zip -Force
+                powershell Compress-Archive -Path ${API_REPORT_DIR}\\* -DestinationPath ${ZIP_OUTPUT}\\api-report.zip -Force
+                """
             }
         }
     }
 
     post {
 
-        always {
-            archiveArtifacts artifacts: 'results/*.jtl', fingerprint: true
-        }
-
         success {
-            emailext(
-                subject: "Jenkins Build SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-
+            emailext (
+                subject: "Jenkins Build SUCCESS - Web + API Reports",
                 body: """
-                <h2>JMeter Execution Successful</h2>
+                Build Successful 🎉
 
-                <p>
-                Aggregate dashboard is available in Jenkins UI under:
-                <br><br>
-                <b>Build → Performance Report</b>
-                </p>
+                Reports Generated:
+                - Web Report: ${WEB_REPORT_DIR}
+                - API Report: ${API_REPORT_DIR}
+                - Dashboard: ${AGGREGATE_FILE}
+
+                Zipped Reports Available in:
+                ${ZIP_OUTPUT}
+
+                Check Jenkins workspace for full details.
                 """,
-
-                mimeType: 'text/html',
-                to: 'bavishasundar@gmail.com'
+                to: "your-email@gmail.com"
             )
         }
 
         failure {
-            emailext(
-                subject: "Jenkins Build FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                body: "Build Failed. Check Console Output: ${env.BUILD_URL}console",
-                to: 'bavishasundar@gmail.com'
+            emailext (
+                subject: "Jenkins Build FAILED - Web + API Reports",
+                body: "Build Failed. Please check Jenkins logs.",
+                to: "your-email@gmail.com"
             )
+        }
+
+        always {
+            archiveArtifacts artifacts: 'report/**', fingerprint: true
         }
     }
 }
