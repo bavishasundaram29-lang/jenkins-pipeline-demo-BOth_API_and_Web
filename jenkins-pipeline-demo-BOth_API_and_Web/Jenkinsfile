@@ -26,22 +26,25 @@ pipeline {
                 mkdir results
                 mkdir report
                 mkdir report\\web
+                mkdir report\\api
                 mkdir zipreport
                 '''
             }
         }
 
-        stage('Verify WEB JMX File') {
+        stage('Verify JMX Files') {
             steps {
                 bat '''
-                echo ================= VERIFY WEB JMX =================
-
+                echo ================= VERIFY WEB FILE =================
                 dir jenkins-pipeline-demo-BOth_API_and_Web\\web
+
+                echo ================= VERIFY API FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
                 '''
             }
         }
 
-        stage('Run WEB JMeter Test') {
+        stage('Run WEB Test') {
             steps {
                 bat """
                 echo Running WEB Test...
@@ -55,47 +58,74 @@ pipeline {
             }
         }
 
-        stage('Generate WEB HTML Report') {
+        stage('Run API Test') {
             steps {
                 bat """
-                echo Generating WEB HTML Report...
+                echo Running API Test...
 
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
+                %JMETER_HOME%\\bin\\jmeter.bat -n ^
+                -t jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx ^
+                -l results\\api.jtl
+
+                echo API Test Completed
                 """
             }
         }
 
-        stage('Create ZIP Report') {
+        stage('Generate HTML Reports') {
+            steps {
+                bat """
+                echo Generating WEB HTML Report...
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
+
+                echo Generating API HTML Report...
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
+                """
+            }
+        }
+
+        stage('Create ZIP Reports') {
             steps {
                 powershell '''
                 Compress-Archive -Path report\\web\\* `
                 -DestinationPath zipreport\\WEB_Report.zip -Force
+
+                Compress-Archive -Path report\\api\\* `
+                -DestinationPath zipreport\\API_Report.zip -Force
                 '''
             }
         }
 
-        stage('Verify WEB Report') {
+        stage('Verify Reports') {
             steps {
                 bat '''
                 echo ================= WEB REPORT =================
-
                 dir report\\web
 
-                echo ================= ZIP REPORT =================
+                echo ================= API REPORT =================
+                dir report\\api
 
+                echo ================= ZIP REPORTS =================
                 dir zipreport
 
                 if exist zipreport\\WEB_Report.zip (
-                    echo ZIP Report Generated Successfully
+                    echo WEB ZIP Report Generated Successfully
                 ) else (
-                    echo ZIP Report NOT Generated
+                    echo WEB ZIP Report NOT Generated
+                    exit /b 1
+                )
+
+                if exist zipreport\\API_Report.zip (
+                    echo API ZIP Report Generated Successfully
+                ) else (
+                    echo API ZIP Report NOT Generated
                     exit /b 1
                 )
                 '''
             }
         }
 
-        stage('Publish WEB Report') {
+        stage('Publish Reports') {
             steps {
 
                 publishHTML([
@@ -105,6 +135,15 @@ pipeline {
                     reportDir: 'report/web',
                     reportFiles: 'index.html',
                     reportName: 'WEB_HTML_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report/api',
+                    reportFiles: 'index.html',
+                    reportName: 'API_HTML_Report'
                 ])
             }
         }
@@ -119,18 +158,28 @@ pipeline {
             emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "WEB JMeter Report - SUCCESS - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter WEB & API Report - SUCCESS - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: SUCCESS
 
-WEB HTML Report Generated Successfully.
+WEB and API HTML Reports Generated Successfully.
 
-View HTML Report:
+================ REPORT LINKS ================
+
+WEB HTML Report:
 ${env.BUILD_URL}WEB_HTML_Report/
 
-Download ZIP Report:
+API HTML Report:
+${env.BUILD_URL}API_HTML_Report/
+
+================ DOWNLOAD ZIP FILES ================
+
+WEB ZIP Report:
 ${env.BUILD_URL}artifact/zipreport/WEB_Report.zip
+
+API ZIP Report:
+${env.BUILD_URL}artifact/zipreport/API_Report.zip
                 """,
 
                 mimeType: 'text/plain'
@@ -142,12 +191,12 @@ ${env.BUILD_URL}artifact/zipreport/WEB_Report.zip
             emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "WEB JMeter Report - FAILURE - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter WEB & API Report - FAILURE - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: FAILURE
 
-WEB HTML Report Generation Failed.
+WEB/API Report Generation Failed.
                 """
             )
         }
