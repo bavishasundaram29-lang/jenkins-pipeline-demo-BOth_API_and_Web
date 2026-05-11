@@ -62,7 +62,7 @@ pipeline {
             }
         }
 
-        stage('Zip Reports for Email') {
+        stage('Zip Reports') {
             steps {
                 bat '''
                 powershell Compress-Archive -Path report\\api -DestinationPath report\\API_Report.zip -Force
@@ -104,15 +104,14 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: " Jenkins SUCCESS - API + WEB Reports",
+                subject: "✔ Jenkins SUCCESS - API + WEB Reports",
                 body: """
-Build SUCCESS 
+Build SUCCESS ✔
 
- API Report Generated
- WEB Report Generated
+✔ API Report Generated
+✔ WEB Report Generated
 
-Both reports are attached as ZIP folders:
-
+Reports attached:
 - API_Report.zip
 - WEB_Report.zip
 
@@ -121,16 +120,16 @@ Also available in Jenkins UI.
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
 """,
-                attachmentsPattern: "report/API_Report.zip, report/WEB_Report.zip"
+                attachmentsPattern: "report/*.zip"
             )
         }
 
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: " Jenkins FAILED - API + WEB",
+                subject: "❌ Jenkins FAILED - API + WEB",
                 body: """
-Build FAILED 
+Build FAILED ❌
 
 Check Jenkins logs for details.
 
