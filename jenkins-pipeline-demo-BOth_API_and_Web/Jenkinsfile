@@ -48,7 +48,9 @@ pipeline {
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx ^
                         -l results\\web.jtl ^
-                        -Jjmeter.save.saveservice.output_format=csv
+                        -Jjmeter.save.saveservice.output_format=csv ^
+                        -Jjmeter.save.saveservice.assertion_results=none ^
+                        -Jjmeter.save.saveservice.response_data=false
                         """
                     }
                 }
@@ -58,10 +60,20 @@ pipeline {
         stage('Generate HTML Reports') {
             steps {
                 bat '''
-                echo Generating API Report...
+                echo === Generating API Report ===
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
 
-                echo Generating WEB Report...
+                echo === Validating WEB JTL ===
+                if not exist results\\web.jtl exit /b 1
+
+                for %%A in (results\\web.jtl) do (
+                    if %%~zA LSS 500 (
+                        echo WEB JTL invalid
+                        exit /b 1
+                    )
+                )
+
+                echo === Generating WEB Report ===
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
                 '''
             }
@@ -97,18 +109,18 @@ pipeline {
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins Build Report - ${env.BUILD_NUMBER}",
+                subject: "Jenkins API + WEB Report - Build ${env.BUILD_NUMBER}",
                 body: """
 Build Status: ${currentBuild.currentResult}
 
 ✔ API Report Generated
 ✔ WEB Report Generated
 
-Reports are attached as folders:
-- API Report (report/api)
-- WEB Report (report/web)
+Check attachments:
+- report/api
+- report/web
                 """,
-                attachmentsPattern: 'report/**/*.html,report/**/*.css,report/**/*.js'
+                attachmentsPattern: 'report/**/index.html,report/**/*.css,report/**/*.js'
             )
         }
     }
