@@ -9,6 +9,7 @@ pipeline {
     stages {
 
         stage('Checkout Code') {
+
             steps {
 
                 git branch: 'main',
@@ -17,25 +18,27 @@ pipeline {
         }
 
         stage('Clean Workspace') {
+
             steps {
 
                 bat '''
-                echo Cleaning workspace...
+                echo Cleaning Workspace...
 
                 rmdir /s /q results 2>nul
                 rmdir /s /q report 2>nul
-                rmdir /s /q zipreport 2>nul
                 rmdir /s /q aggregate 2>nul
+                rmdir /s /q zipreport 2>nul
 
                 mkdir results
                 mkdir report
-                mkdir zipreport
                 mkdir aggregate
+                mkdir zipreport
                 '''
             }
         }
 
         stage('Verify Files') {
+
             steps {
 
                 bat '''
@@ -49,6 +52,7 @@ pipeline {
         }
 
         stage('Run WEB Test') {
+
             steps {
 
                 bat """
@@ -65,6 +69,7 @@ pipeline {
         }
 
         stage('Run API Test') {
+
             steps {
 
                 bat """
@@ -80,19 +85,21 @@ pipeline {
             }
         }
 
-        stage('Generate Aggregate Dashboard') {
+        stage('Generate Detailed Aggregate Report') {
 
             steps {
 
                 powershell '''
 
                 function Get-Percentile {
+
                     param(
                         [double[]]$data,
                         [double]$percentile
                     )
 
                     $sorted = $data | Sort-Object
+
                     $index = [math]::Ceiling(($percentile / 100) * $sorted.Count) - 1
 
                     if ($index -lt 0) {
@@ -102,181 +109,127 @@ pipeline {
                     return $sorted[$index]
                 }
 
-                # ==========================================================
-                # WEB REPORT
-                # ==========================================================
+                function Generate-AggregateReport {
 
-                $webCsv = Import-Csv "results\\web.jtl"
+                    param(
+                        [string]$jtlFile,
+                        [string]$outputFile,
+                        [string]$title
+                    )
 
-                $webElapsed = $webCsv.elapsed | ForEach-Object { [double]$_ }
+                    $csv = Import-Csv $jtlFile
 
-                $webTotal = $webCsv.Count
-                $webPass = ($webCsv | Where-Object {$_.success -eq "true"}).Count
-                $webFail = ($webCsv | Where-Object {$_.success -eq "false"}).Count
+                    $grouped = $csv | Group-Object label
 
-                $webAvg = [math]::Round((($webElapsed | Measure-Object -Average).Average),2)
-                $webMedian = [math]::Round((Get-Percentile $webElapsed 50),2)
-                $web90 = [math]::Round((Get-Percentile $webElapsed 90),2)
-                $web95 = [math]::Round((Get-Percentile $webElapsed 95),2)
+                    $rows = ""
 
-                $webMin = ($webElapsed | Measure-Object -Minimum).Minimum
-                $webMax = ($webElapsed | Measure-Object -Maximum).Maximum
+                    foreach ($group in $grouped) {
 
-                $webStart = ($webCsv.timeStamp | Measure-Object -Minimum).Minimum
-                $webEnd = ($webCsv.timeStamp | Measure-Object -Maximum).Maximum
+                        $label = $group.Name
 
-                $webDuration = ($webEnd - $webStart) / 1000
+                        $samples = $group.Count
 
-                if ($webDuration -eq 0) {
-                    $webThroughput = 0
-                }
-                else {
-                    $webThroughput = [math]::Round(($webTotal / $webDuration),2)
-                }
+                        $elapsed = $group.Group.elapsed | ForEach-Object { [double]$_ }
 
-                $webHtml = @"
+                        $avg = [math]::Round((($elapsed | Measure-Object -Average).Average),2)
+
+                        $median = [math]::Round((Get-Percentile $elapsed 50),2)
+
+                        $p90 = [math]::Round((Get-Percentile $elapsed 90),2)
+
+                        $p95 = [math]::Round((Get-Percentile $elapsed 95),2)
+
+                        $min = ($elapsed | Measure-Object -Minimum).Minimum
+
+                        $max = ($elapsed | Measure-Object -Maximum).Maximum
+
+                        $passed = ($group.Group | Where-Object {$_.success -eq "true"}).Count
+
+                        $failed = ($group.Group | Where-Object {$_.success -eq "false"}).Count
+
+                        $errorPercent = [math]::Round((($failed / $samples) * 100),2)
+
+                        $start = ($group.Group.timeStamp | Measure-Object -Minimum).Minimum
+
+                        $end = ($group.Group.timeStamp | Measure-Object -Maximum).Maximum
+
+                        $duration = ($end - $start) / 1000
+
+                        if ($duration -eq 0) {
+                            $throughput = 0
+                        }
+                        else {
+                            $throughput = [math]::Round(($samples / $duration),2)
+                        }
+
+                        $rows += @"
+<tr>
+<td>$label</td>
+<td>$samples</td>
+<td>$avg</td>
+<td>$median</td>
+<td>$p90</td>
+<td>$p95</td>
+<td>$min</td>
+<td>$max</td>
+<td>$errorPercent</td>
+<td>$throughput</td>
+<td>$passed</td>
+<td>$failed</td>
+</tr>
+"@
+                    }
+
+                    $html = @"
 <html>
-<body>
 
-<h1>WEB Aggregate Report</h1>
+<body style='font-family:Arial;'>
 
-<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:Arial;'>
+<h1>$title</h1>
+
+<table border='1'
+       cellpadding='6'
+       cellspacing='0'
+       style='border-collapse:collapse;width:100%;'>
 
 <tr bgcolor='#D3D3D3'>
-<th>Total Samples</th>
+
+<th>Label</th>
+<th>Samples</th>
+<th>Average(ms)</th>
+<th>Median(ms)</th>
+<th>90% Line(ms)</th>
+<th>95% Line(ms)</th>
+<th>Min(ms)</th>
+<th>Max(ms)</th>
+<th>Error %</th>
+<th>Throughput(req/sec)</th>
 <th>Passed</th>
 <th>Failed</th>
-<th>Average Response Time(ms)</th>
+
 </tr>
 
-<tr>
-<td>$webTotal</td>
-<td>$webPass</td>
-<td>$webFail</td>
-<td>$webAvg</td>
-</tr>
-
-</table>
-
-<br><br>
-
-<h2>WEB Detailed Aggregate Report</h2>
-
-<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:Arial;'>
-
-<tr bgcolor='#D3D3D3'>
-<th>Median(ms)</th>
-<th>90th Percentile(ms)</th>
-<th>95th Percentile(ms)</th>
-<th>Min Response(ms)</th>
-<th>Max Response(ms)</th>
-<th>Throughput(req/sec)</th>
-</tr>
-
-<tr>
-<td>$webMedian</td>
-<td>$web90</td>
-<td>$web95</td>
-<td>$webMin</td>
-<td>$webMax</td>
-<td>$webThroughput</td>
-</tr>
+$rows
 
 </table>
 
 </body>
+
 </html>
 "@
 
-                $webHtml | Out-File aggregate\\web_aggregate.html -Encoding utf8
-
-                # ==========================================================
-                # API REPORT
-                # ==========================================================
-
-                $apiCsv = Import-Csv "results\\api.jtl"
-
-                $apiElapsed = $apiCsv.elapsed | ForEach-Object { [double]$_ }
-
-                $apiTotal = $apiCsv.Count
-                $apiPass = ($apiCsv | Where-Object {$_.success -eq "true"}).Count
-                $apiFail = ($apiCsv | Where-Object {$_.success -eq "false"}).Count
-
-                $apiAvg = [math]::Round((($apiElapsed | Measure-Object -Average).Average),2)
-                $apiMedian = [math]::Round((Get-Percentile $apiElapsed 50),2)
-                $api90 = [math]::Round((Get-Percentile $apiElapsed 90),2)
-                $api95 = [math]::Round((Get-Percentile $apiElapsed 95),2)
-
-                $apiMin = ($apiElapsed | Measure-Object -Minimum).Minimum
-                $apiMax = ($apiElapsed | Measure-Object -Maximum).Maximum
-
-                $apiStart = ($apiCsv.timeStamp | Measure-Object -Minimum).Minimum
-                $apiEnd = ($apiCsv.timeStamp | Measure-Object -Maximum).Maximum
-
-                $apiDuration = ($apiEnd - $apiStart) / 1000
-
-                if ($apiDuration -eq 0) {
-                    $apiThroughput = 0
-                }
-                else {
-                    $apiThroughput = [math]::Round(($apiTotal / $apiDuration),2)
+                    $html | Out-File $outputFile -Encoding utf8
                 }
 
-                $apiHtml = @"
-<html>
-<body>
+                Generate-AggregateReport `
+                    "results\\web.jtl" `
+                    "aggregate\\web_aggregate.html" `
+                    "WEB Sample Wise Aggregate Report"
 
-<h1>API Aggregate Report</h1>
-
-<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:Arial;'>
-
-<tr bgcolor='#D3D3D3'>
-<th>Total Samples</th>
-<th>Passed</th>
-<th>Failed</th>
-<th>Average Response Time(ms)</th>
-</tr>
-
-<tr>
-<td>$apiTotal</td>
-<td>$apiPass</td>
-<td>$apiFail</td>
-<td>$apiAvg</td>
-</tr>
-
-</table>
-
-<br><br>
-
-<h2>API Detailed Aggregate Report</h2>
-
-<table border='1' cellpadding='6' cellspacing='0' style='border-collapse:collapse;font-family:Arial;'>
-
-<tr bgcolor='#D3D3D3'>
-<th>Median(ms)</th>
-<th>90th Percentile(ms)</th>
-<th>95th Percentile(ms)</th>
-<th>Min Response(ms)</th>
-<th>Max Response(ms)</th>
-<th>Throughput(req/sec)</th>
-</tr>
-
-<tr>
-<td>$apiMedian</td>
-<td>$api90</td>
-<td>$api95</td>
-<td>$apiMin</td>
-<td>$apiMax</td>
-<td>$apiThroughput</td>
-</tr>
-
-</table>
-
-</body>
-</html>
-"@
-
-                $apiHtml | Out-File aggregate\\api_aggregate.html -Encoding utf8
+                Generate-AggregateReport `
+                    "results\\api.jtl" `
+                    "aggregate\\api_aggregate.html" `
+                    "API Sample Wise Aggregate Report"
 
                 '''
             }
@@ -345,24 +298,42 @@ pipeline {
 
         success {
 
-            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip,aggregate/*.html', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl,report/**,aggregate/*.html,zipreport/*.zip', fingerprint: true
 
             script {
 
-                def webTable = readFile(file: 'aggregate/web_aggregate.html', encoding: 'UTF-8')
-                def apiTable = readFile(file: 'aggregate/api_aggregate.html', encoding: 'UTF-8')
+                def webCsv = readCSV file: 'results/web.jtl'
+
+                def apiCsv = readCSV file: 'results/api.jtl'
+
+                def webTotal = webCsv.size()
+                def webPass = webCsv.count { it.success == 'true' }
+                def webFail = webCsv.count { it.success == 'false' }
+
+                def webAvg = Math.round(
+                    webCsv.collect { it.elapsed.toDouble() }.sum() / webTotal * 100
+                ) / 100
+
+                def apiTotal = apiCsv.size()
+                def apiPass = apiCsv.count { it.success == 'true' }
+                def apiFail = apiCsv.count { it.success == 'false' }
+
+                def apiAvg = Math.round(
+                    apiCsv.collect { it.elapsed.toDouble() }.sum() / apiTotal * 100
+                ) / 100
 
                 emailext(
 
                     to: 'bavishasundar@gmail.com',
 
-                    subject: "JMeter WEB & API Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
+                    subject: "JMeter Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
 
                     mimeType: 'text/html',
 
                     body: """
 <html>
-<body>
+
+<body style='font-family:Arial;'>
 
 <h1>JMeter Execution Report</h1>
 
@@ -370,31 +341,89 @@ pipeline {
 
 <br>
 
-<h2>WEB HTML REPORT</h2>
+<h2>WEB Aggregate Summary</h2>
 
+<table border='1'
+       cellpadding='6'
+       cellspacing='0'
+       style='border-collapse:collapse;'>
+
+<tr bgcolor='#D3D3D3'>
+<th>Total Samples</th>
+<th>Passed</th>
+<th>Failed</th>
+<th>Average Response Time(ms)</th>
+</tr>
+
+<tr>
+<td>${webTotal}</td>
+<td>${webPass}</td>
+<td>${webFail}</td>
+<td>${webAvg}</td>
+</tr>
+
+</table>
+
+<br><br>
+
+<h2>API Aggregate Summary</h2>
+
+<table border='1'
+       cellpadding='6'
+       cellspacing='0'
+       style='border-collapse:collapse;'>
+
+<tr bgcolor='#D3D3D3'>
+<th>Total Samples</th>
+<th>Passed</th>
+<th>Failed</th>
+<th>Average Response Time(ms)</th>
+</tr>
+
+<tr>
+<td>${apiTotal}</td>
+<td>${apiPass}</td>
+<td>${apiFail}</td>
+<td>${apiAvg}</td>
+</tr>
+
+</table>
+
+<br><br>
+
+<h2>Detailed Reports</h2>
+
+WEB Aggregate:
+<a href="${env.BUILD_URL}WEB_Aggregate_Report/">
+Open WEB Aggregate Report
+</a>
+
+<br><br>
+
+API Aggregate:
+<a href="${env.BUILD_URL}API_Aggregate_Report/">
+Open API Aggregate Report
+</a>
+
+<br><br>
+
+<h2>JMeter HTML Dashboards</h2>
+
+WEB Dashboard:
 <a href="${env.BUILD_URL}WEB_HTML_Report/">
-Open WEB HTML Report
+Open WEB Dashboard
 </a>
 
 <br><br>
 
-<h2>API HTML REPORT</h2>
-
+API Dashboard:
 <a href="${env.BUILD_URL}API_HTML_Report/">
-Open API HTML Report
+Open API Dashboard
 </a>
 
 <br><br>
 
-${webTable}
-
-<br><br>
-
-${apiTable}
-
-<br><br>
-
-<h2>Download ZIP Reports</h2>
+<h2>ZIP Reports</h2>
 
 WEB ZIP:
 <a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
@@ -409,6 +438,7 @@ Download API ZIP
 </a>
 
 </body>
+
 </html>
                     """,
 
@@ -423,12 +453,12 @@ Download API ZIP
 
                 to: 'bavishasundar@gmail.com',
 
-                subject: "JMeter WEB & API Reports - FAILURE - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter Reports - FAILURE - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: FAILURE
 
-Check Jenkins Console Output:
+Check Console Output:
 ${env.BUILD_URL}console
                 """
             )
