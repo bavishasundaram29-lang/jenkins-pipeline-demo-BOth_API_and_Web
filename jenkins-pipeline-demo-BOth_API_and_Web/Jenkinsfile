@@ -3,6 +3,9 @@ pipeline {
 
     environment {
         JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+
+        WEB_REPORT_PATH = "C:\\ProgramData\\Jenkins\\.jenkins\\workspace\\jenkins_pipeline_WEB-API\\report\\web"
+        API_REPORT_PATH = "C:\\ProgramData\\Jenkins\\.jenkins\\workspace\\jenkins_pipeline_WEB-API\\report\\api"
     }
 
     stages {
@@ -72,15 +75,67 @@ pipeline {
             }
         }
 
+        stage('Verify JTL Files') {
+            steps {
+                bat '''
+                echo ================= VERIFY JTL FILES =================
+
+                dir results
+
+                if exist results\\web.jtl (
+                    echo WEB JTL Generated Successfully
+                ) else (
+                    echo WEB JTL Missing
+                    exit /b 1
+                )
+
+                if exist results\\api.jtl (
+                    echo API JTL Generated Successfully
+                ) else (
+                    echo API JTL Missing
+                    exit /b 1
+                )
+                '''
+            }
+        }
+
         stage('Generate HTML Reports') {
             steps {
                 bat """
                 echo Generating WEB HTML Report...
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
+
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o "%WEB_REPORT_PATH%"
 
                 echo Generating API HTML Report...
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
+
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o "%API_REPORT_PATH%"
                 """
+            }
+        }
+
+        stage('Verify HTML Reports') {
+            steps {
+                bat '''
+                echo ================= WEB REPORT =================
+                dir report\\web
+
+                echo ================= API REPORT =================
+                dir report\\api
+
+                if exist report\\web\\index.html (
+                    echo WEB HTML Report Generated Successfully
+                ) else (
+                    echo WEB HTML Report Failed
+                    exit /b 1
+                )
+
+                if exist report\\api\\index.html (
+                    echo API HTML Report Generated Successfully
+                ) else (
+                    echo API HTML Report Failed
+                    exit /b 1
+                )
+                '''
             }
         }
 
@@ -96,36 +151,31 @@ pipeline {
             }
         }
 
-        stage('Verify Reports') {
+        stage('Verify ZIP Reports') {
             steps {
                 bat '''
-                echo ================= WEB REPORT =================
-                dir report\\web
-
-                echo ================= API REPORT =================
-                dir report\\api
-
                 echo ================= ZIP REPORTS =================
+
                 dir zipreport
 
                 if exist zipreport\\WEB_Report.zip (
                     echo WEB ZIP Report Generated Successfully
                 ) else (
-                    echo WEB ZIP Report NOT Generated
+                    echo WEB ZIP Report Failed
                     exit /b 1
                 )
 
                 if exist zipreport\\API_Report.zip (
                     echo API ZIP Report Generated Successfully
                 ) else (
-                    echo API ZIP Report NOT Generated
+                    echo API ZIP Report Failed
                     exit /b 1
                 )
                 '''
             }
         }
 
-        stage('Publish Reports') {
+        stage('Publish HTML Reports') {
             steps {
 
                 publishHTML([
@@ -158,7 +208,7 @@ pipeline {
             emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "JMeter WEB & API Report - SUCCESS - Build #${env.BUILD_NUMBER}",
+                subject: "WEB & API JMeter Report - SUCCESS - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: SUCCESS
@@ -191,12 +241,14 @@ ${env.BUILD_URL}artifact/zipreport/API_Report.zip
             emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "JMeter WEB & API Report - FAILURE - Build #${env.BUILD_NUMBER}",
+                subject: "WEB & API JMeter Report - FAILURE - Build #${env.BUILD_NUMBER}",
 
                 body: """
 Build Status: FAILURE
 
 WEB/API Report Generation Failed.
+
+Please check Jenkins Console Output.
                 """
             )
         }
