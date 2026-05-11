@@ -32,32 +32,46 @@ pipeline {
             }
         }
 
-        stage('Merge Results') {
+        stage('Generate API HTML Report') {
             steps {
                 bat '''
-                copy /b api_result.jtl + web_result.jtl final_result.jtl
+                if exist api_report rmdir /s /q api_report
+                jmeter -g api_result.jtl -o api_report
                 '''
             }
         }
 
-        stage('Generate HTML Report') {
+        stage('Generate Web HTML Report') {
             steps {
                 bat '''
-                if exist reports rmdir /s /q reports
-                jmeter -g final_result.jtl -o reports
+                if exist web_report rmdir /s /q web_report
+                jmeter -g web_result.jtl -o web_report
                 '''
             }
         }
 
-        stage('Publish HTML Report') {
+        stage('Publish API HTML Report') {
             steps {
                 publishHTML(target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
-                    reportDir: 'reports',
+                    reportDir: 'api_report',
                     reportFiles: 'index.html',
-                    reportName: 'JMeter HTML Report'
+                    reportName: 'API JMeter Report'
+                ])
+            }
+        }
+
+        stage('Publish Web HTML Report') {
+            steps {
+                publishHTML(target: [
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'web_report',
+                    reportFiles: 'index.html',
+                    reportName: 'Web JMeter Report'
                 ])
             }
         }
@@ -79,14 +93,14 @@ pipeline {
 
                 <p>API and Web scripts executed in parallel successfully.</p>
 
-                <p>HTML Report has been attached.</p>
+                <p>Reports have been attached.</p>
                 """,
 
                 mimeType: 'text/html',
 
                 to: 'bavishasundar@gmail.com',
 
-                attachmentsPattern: 'reports/**/*'
+                attachmentsPattern: 'api_report/**/*, web_report/**/*'
             )
         }
     }
