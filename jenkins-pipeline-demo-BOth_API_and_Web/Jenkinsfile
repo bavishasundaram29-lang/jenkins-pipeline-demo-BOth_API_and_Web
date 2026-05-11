@@ -1,0 +1,97 @@
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
+            }
+        }
+
+        stage('Run API and Web Tests in Parallel') {
+
+            parallel {
+
+                stage('API Test') {
+                    steps {
+                        bat '''
+                        jmeter -n -t api/api_script.jmx -l api_result.jtl
+                        '''
+                    }
+                }
+
+                stage('Web Test') {
+                    steps {
+                        bat '''
+                        jmeter -n -t web/SCR01_Jpetstore.jmx -l web_result.jtl
+                        '''
+                    }
+                }
+            }
+        }
+
+        stage('Merge Results') {
+            steps {
+                bat '''
+                copy /b api_result.jtl + web_result.jtl final_result.jtl
+                '''
+            }
+        }
+
+        stage('Generate HTML Report') {
+            steps {
+                bat '''
+                jmeter -g final_result.jtl -o reports
+                '''
+            }
+        }
+
+        stage('Publish HTML Report') {
+            steps {
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'reports',
+                    reportFiles: 'index.html',
+                    reportName: 'JMeter HTML Report'
+                ])
+            }
+        }
+    }
+
+    post {
+
+        always {
+
+            emailext(
+                subject: "Jenkins Build Report - ${BUILD_NUMBER}",
+
+                body: """
+                <h2>Jenkins JMeter Execution Report</h2>
+
+                <p>Build completed successfully.</p>
+
+                <p>
+                <b>Build Number:</b> ${BUILD_NUMBER}
+                </p>
+
+                <p>
+                API and Web scripts executed in parallel successfully.
+                </p>
+
+                <p>
+                HTML Report has been attached.
+                </p>
+                """,
+
+                mimeType: 'text/html',
+
+                to: 'bavishasundar@gmail.com',
+
+                attachmentsPattern: 'reports/**'
+            )
+        }
+    }
+}
