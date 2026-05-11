@@ -29,7 +29,7 @@ pipeline {
             }
         }
 
-        stage('Verify JMX File') {
+        stage('Verify WEB JMX File') {
             steps {
                 bat '''
                 echo ================= VERIFY WEB JMX =================
@@ -74,6 +74,7 @@ pipeline {
                     echo WEB HTML Report Generated Successfully
                 ) else (
                     echo WEB HTML Report NOT Generated
+                    exit /b 1
                 )
                 '''
             }
@@ -83,7 +84,7 @@ pipeline {
             steps {
 
                 publishHTML([
-                    allowMissing: true,
+                    allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
                     reportDir: 'report/web',
@@ -96,21 +97,41 @@ pipeline {
 
     post {
 
-        always {
+        success {
 
             archiveArtifacts artifacts: 'results/*.jtl,report/**', fingerprint: true
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "WEB JMeter Report - Build #${env.BUILD_NUMBER}",
+
+                subject: "WEB JMeter Report - SUCCESS - Build #${env.BUILD_NUMBER}",
+
                 body: """
-Build Status: ${currentBuild.currentResult}
+Build Status: SUCCESS
 
 WEB HTML Report Generated Successfully.
 
-Check Jenkins HTML Reports section.
+Please check Jenkins HTML Reports section.
                 """,
-                attachmentsPattern: 'report/**'
+
+                mimeType: 'text/plain',
+
+                attachmentsPattern: 'report/web/index.html'
+            )
+        }
+
+        failure {
+
+            emailext(
+                to: 'bavishasundar@gmail.com',
+
+                subject: "WEB JMeter Report - FAILURE - Build #${env.BUILD_NUMBER}",
+
+                body: """
+Build Status: FAILURE
+
+WEB HTML Report Generation Failed.
+                """
             )
         }
     }
