@@ -14,6 +14,18 @@ pipeline {
             }
         }
 
+        stage('Validate Files') {
+            steps {
+                bat '''
+                echo Checking API file...
+                dir api
+
+                echo Checking Web file...
+                dir web
+                '''
+            }
+        }
+
         stage('Clean Workspace') {
             steps {
                 bat '''
@@ -29,7 +41,7 @@ pipeline {
             }
         }
 
-        // TRUE PARALLEL EXECUTION
+        // TRUE PARALLEL EXECUTION (ONLY RUN TESTS)
         stage('Run API + Web Tests') {
             parallel {
 
@@ -55,7 +67,7 @@ pipeline {
             }
         }
 
-        stage('Generate HTML Reports') {
+        stage('Generate Reports') {
             steps {
                 bat '''
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
@@ -89,18 +101,18 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + Web JMeter Test",
+                subject: "✔ Jenkins SUCCESS - API + Web Test",
                 body: """
 Hi,
 
 Your Jenkins pipeline executed successfully.
 
-✔ API Test: Completed  
-✔ Web Test: Completed  
-✔ Reports Generated in Jenkins UI  
+✔ API Test Completed  
+✔ Web Test Completed  
+✔ Reports Generated  
 
-Build No: ${env.BUILD_NUMBER}
 Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
 
 Regards,
 Jenkins Automation
@@ -115,12 +127,12 @@ Jenkins Automation
                 body: """
 Hi,
 
-Your Jenkins pipeline failed.
+Your Jenkins pipeline FAILED.
 
-Please check console logs for details.
+Please check logs.
 
-Build No: ${env.BUILD_NUMBER}
 Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
 
 Regards,
 Jenkins
