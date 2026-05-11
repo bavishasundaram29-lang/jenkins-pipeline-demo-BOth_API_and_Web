@@ -1,3 +1,4 @@
+```groovy
 pipeline {
     agent any
 
@@ -5,7 +6,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
+                git branch: 'main',
+                url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
             }
         }
 
@@ -90,3 +92,4 @@ pipeline {
         }
     }
 }
+```
