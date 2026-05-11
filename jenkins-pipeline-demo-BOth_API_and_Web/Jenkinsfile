@@ -55,16 +55,21 @@ pipeline {
             }
         }
 
-        stage('Generate HTML Reports') {
+        stage('Generate HTML Reports (FIXED)') {
             steps {
                 bat '''
+                echo Cleaning old reports...
+
                 if exist report\\api rmdir /s /q report\\api
                 if exist report\\web rmdir /s /q report\\web
 
                 mkdir report\\api
                 mkdir report\\web
 
+                echo Generating API report...
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
+
+                echo Generating WEB report...
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
                 '''
             }
@@ -117,12 +122,12 @@ pipeline {
                 body: """
 Build Status: ${currentBuild.currentResult}
 
-✔ API Report Folder attached
-✔ WEB Report Folder attached
+✔ API Report Generated
+✔ WEB Report Generated
 
-Check Jenkins UI for full reports.
+Check Jenkins UI for full HTML dashboards.
 """,
-                attachmentsPattern: 'artifacts/API_Report/**/*, artifacts/WEB_Report/**/*'
+                attachmentsPattern: 'artifacts/**/*'
             )
         }
     }
