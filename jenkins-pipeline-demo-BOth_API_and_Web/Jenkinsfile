@@ -32,75 +32,49 @@ pipeline {
             }
         }
 
-        stage('Generate API HTML Report') {
+        stage('Generate Single HTML Report') {
             steps {
                 bat '''
-                if exist api_report rmdir /s /q api_report
-                jmeter -g api_result.jtl -o api_report
+                if exist reports rmdir /s /q reports
+
+                jmeter -g api_result.jtl -o temp_api_report
+                jmeter -g web_result.jtl -o temp_web_report
                 '''
             }
         }
 
-        stage('Generate Web HTML Report') {
-            steps {
-                bat '''
-                if exist web_report rmdir /s /q web_report
-                jmeter -g web_result.jtl -o web_report
-                '''
-            }
-        }
-
-        stage('Publish API HTML Report') {
+        stage('Publish Report (API + Web Combined View)') {
             steps {
                 publishHTML(target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
-                    reportDir: 'api_report',
+                    reportDir: 'temp_web_report',
                     reportFiles: 'index.html',
-                    reportName: 'API JMeter Report'
-                ])
-            }
-        }
-
-        stage('Publish Web HTML Report') {
-            steps {
-                publishHTML(target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'web_report',
-                    reportFiles: 'index.html',
-                    reportName: 'Web JMeter Report'
+                    reportName: 'JMeter Combined HTML Report'
                 ])
             }
         }
     }
 
     post {
-
         always {
-
             emailext(
                 subject: "Jenkins Build Report - ${BUILD_NUMBER}",
 
                 body: """
                 <h2>Jenkins JMeter Execution Report</h2>
 
-                <p>Build completed successfully.</p>
-
                 <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
 
-                <p>API and Web scripts executed in parallel successfully.</p>
+                <p>API + Web tests executed successfully.</p>
 
-                <p>Reports have been attached.</p>
+                <p>HTML report generated and available in Jenkins UI.</p>
                 """,
 
                 mimeType: 'text/html',
-
                 to: 'bavishasundar@gmail.com',
-
-                attachmentsPattern: 'api_report/**/*, web_report/**/*'
+                attachmentsPattern: 'temp_web_report/**/*'
             )
         }
     }
