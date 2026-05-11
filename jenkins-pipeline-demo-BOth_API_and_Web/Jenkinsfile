@@ -20,11 +20,12 @@ pipeline {
         stage('Run API Test') {
             steps {
                 bat """
-                mkdir %REPORT_API%
                 mkdir %RESULTS_DIR%\\api
+                mkdir %REPORT_API%
 
                 jmeter -n -t api_test.jmx ^
                 -l %RESULTS_DIR%\\api\\api.jtl ^
+                -j %RESULTS_DIR%\\api\\api.log ^
                 -e -o %REPORT_API%
                 """
             }
@@ -33,11 +34,12 @@ pipeline {
         stage('Run Web Test') {
             steps {
                 bat """
-                mkdir %REPORT_WEB%
                 mkdir %RESULTS_DIR%\\web
+                mkdir %REPORT_WEB%
 
                 jmeter -n -t web_test.jmx ^
                 -l %RESULTS_DIR%\\web\\web.jtl ^
+                -j %RESULTS_DIR%\\web\\web.log ^
                 -e -o %REPORT_WEB%
                 """
             }
@@ -53,9 +55,9 @@ pipeline {
             }
         }
 
-        stage('Publish HTML Reports (Jenkins UI)') {
+        stage('Publish HTML Reports in Jenkins UI') {
             steps {
-                publishHTML([
+                publishHTML(target: [
                     reportDir: 'report_api',
                     reportFiles: 'index.html',
                     reportName: 'API HTML Report',
@@ -64,7 +66,7 @@ pipeline {
                     alwaysLinkToLastBuild: true
                 ])
 
-                publishHTML([
+                publishHTML(target: [
                     reportDir: 'report_web',
                     reportFiles: 'index.html',
                     reportName: 'Web HTML Report',
@@ -79,11 +81,11 @@ pipeline {
     post {
         always {
             emailext (
-                subject: "Jenkins API & Web Test Report - Build ${env.BUILD_NUMBER}",
+                subject: "Jenkins API & Web Report - Build ${env.BUILD_NUMBER}",
                 body: """
                 Hi Team,
 
-                Please find attached the API and Web JMeter HTML reports.
+                Please find attached API and Web JMeter HTML reports.
 
                 Build Number: ${env.BUILD_NUMBER}
                 Status: ${currentBuild.currentResult}
