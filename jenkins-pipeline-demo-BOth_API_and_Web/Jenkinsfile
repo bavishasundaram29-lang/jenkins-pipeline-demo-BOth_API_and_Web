@@ -14,24 +14,11 @@ pipeline {
             }
         }
 
-        stage('Verify Workspace') {
-            steps {
-                bat '''
-                echo ================= WORKSPACE =================
-                cd
-
-                echo ================= ROOT FILES =================
-                dir
-
-                echo ================= SEARCH JMX FILE =================
-                dir /s SCR01_Jpetstore.jmx
-                '''
-            }
-        }
-
         stage('Clean Old Files') {
             steps {
                 bat '''
+                echo Cleaning old folders...
+
                 rmdir /s /q results 2>nul
                 rmdir /s /q report 2>nul
 
@@ -42,13 +29,23 @@ pipeline {
             }
         }
 
+        stage('Verify JMX File') {
+            steps {
+                bat '''
+                echo ================= VERIFY WEB JMX =================
+
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
+                '''
+            }
+        }
+
         stage('Run WEB JMeter Test') {
             steps {
                 bat """
                 echo Running WEB Test...
 
                 %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                -t SCR01_Jpetstore.jmx ^
+                -t jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx ^
                 -l results\\web.jtl
 
                 echo WEB Test Completed
@@ -70,6 +67,7 @@ pipeline {
             steps {
                 bat '''
                 echo ================= WEB REPORT =================
+
                 dir report\\web
 
                 if exist report\\web\\index.html (
