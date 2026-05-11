@@ -36,7 +36,7 @@ pipeline {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t api_script.jmx ^
+                        -t api/api_script.jmx ^
                         -l results\\api.jtl ^
                         -e -o report\\api
                         """
@@ -47,7 +47,7 @@ pipeline {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t SCR01_Jpetstore.jmx ^
+                        -t web/SCR01_Jpetstore.jmx ^
                         -l results\\web.jtl ^
                         -e -o report\\web
                         """
@@ -80,13 +80,13 @@ pipeline {
 
         success {
             emailext (
-                subject: " Jenkins Build SUCCESS - JMeter Report",
+                subject: "✔ Jenkins Build SUCCESS - JMeter Report",
                 body: """
                 Hi,
 
                 Your Jenkins build completed successfully.
 
-                 Report is available in Jenkins UI (HTML Publisher)
+                📊 Report is available in Jenkins UI (HTML Publisher)
 
                 Job: ${env.JOB_NAME}
                 Build No: ${env.BUILD_NUMBER}
@@ -100,7 +100,7 @@ pipeline {
 
         failure {
             emailext (
-                subject: " Jenkins Build FAILED",
+                subject: "❌ Jenkins Build FAILED",
                 body: """
                 Hi,
 
