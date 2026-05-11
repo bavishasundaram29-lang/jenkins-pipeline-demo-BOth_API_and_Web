@@ -19,9 +19,6 @@ pipeline {
                 bat '''
                 echo FULL WORKSPACE STRUCTURE:
                 dir
-
-                echo INSIDE REPO:
-                dir jenkins-pipeline-demo-BOth_API_and_Web
                 '''
             }
         }
@@ -34,8 +31,6 @@ pipeline {
 
                 mkdir results
                 mkdir report
-                mkdir report\\api
-                mkdir report\\web
                 mkdir report\\final
                 '''
             }
@@ -66,18 +61,11 @@ pipeline {
             }
         }
 
-        stage('Generate Reports') {
+        stage('Generate Final Report') {
             steps {
                 bat '''
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
-                '''
-            }
-        }
+                if exist report\\final rmdir /s /q report\\final
 
-        stage('Final Report') {
-            steps {
-                bat '''
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
                 '''
             }
@@ -87,8 +75,13 @@ pipeline {
     post {
 
         always {
-            publishHTML (target: [
-                reportDir: 'report\\final',
+            archiveArtifacts artifacts: 'results/**, report/**', fingerprint: true
+
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'report/final',
                 reportFiles: 'index.html',
                 reportName: 'JMeter Final Report'
             ])
@@ -103,7 +96,7 @@ Build SUCCESS
 
 ✔ API executed
 ✔ Web executed
-✔ Reports generated
+✔ Report available in Jenkins UI (NO attachment)
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
@@ -118,7 +111,7 @@ Build: ${env.BUILD_NUMBER}
                 body: """
 Build FAILED
 
-Check Jenkins logs.
+Check Jenkins console logs.
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
