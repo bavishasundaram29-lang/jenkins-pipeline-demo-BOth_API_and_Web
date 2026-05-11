@@ -126,14 +126,14 @@ Build Status: SUCCESS
 
 WEB HTML Report Generated Successfully.
 
-ZIP report attached in this mail.
+View HTML Report:
+${env.BUILD_URL}WEB_HTML_Report/
 
-Please check Jenkins HTML Reports section.
+Download ZIP Report:
+${env.BUILD_URL}artifact/zipreport/WEB_Report.zip
                 """,
 
-                mimeType: 'text/plain',
-
-                attachmentsPattern: 'zipreport/WEB_Report.zip'
+                mimeType: 'text/plain'
             )
         }
 
