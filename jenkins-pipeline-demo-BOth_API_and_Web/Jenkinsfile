@@ -3,8 +3,6 @@ pipeline {
 
     environment {
         JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
-        RESULTS_DIR = "results"
-        REPORT_DIR = "report"
     }
 
     stages {
@@ -43,7 +41,7 @@ pipeline {
                     }
                 }
 
-                stage('Web Test') {
+                stage('WEB Test') {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
@@ -66,12 +64,14 @@ pipeline {
 
         stage('Publish Reports in Jenkins UI') {
             steps {
+
                 publishHTML([
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
                     reportName: 'API HTML Report',
                     keepAll: true,
-                    alwaysLinkToLastBuild: true
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
                 ])
 
                 publishHTML([
@@ -79,7 +79,8 @@ pipeline {
                     reportFiles: 'index.html',
                     reportName: 'WEB HTML Report',
                     keepAll: true,
-                    alwaysLinkToLastBuild: true
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
                 ])
             }
         }
@@ -92,18 +93,15 @@ pipeline {
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins Build ${currentBuild.fullDisplayName}",
+                subject: "Jenkins Build: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                 body: """
                 Build Status: ${currentBuild.currentResult}
 
-                ✔ API executed
-                ✔ WEB executed
-                ✔ Reports generated
+                ✔ API Test Executed
+                ✔ WEB Test Executed
+                ✔ HTML Reports Generated
 
-                Jenkins Job: ${env.JOB_NAME}
-                Build Number: ${env.BUILD_NUMBER}
-
-                Check Jenkins UI for HTML Reports.
+                Check Jenkins UI for detailed reports.
                 """
             )
         }
