@@ -14,15 +14,6 @@ pipeline {
             }
         }
 
-        stage('Debug Workspace') {
-            steps {
-                bat '''
-                echo FULL WORKSPACE STRUCTURE:
-                dir
-                '''
-            }
-        }
-
         stage('Clean Workspace') {
             steps {
                 bat '''
@@ -96,18 +87,20 @@ Build SUCCESS
 
 ✔ API executed
 ✔ Web executed
-✔ Report available in Jenkins UI (NO attachment)
+
+Report attached and available in Jenkins UI
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
-"""
+""",
+                attachmentsPattern: "report/final/**"
             )
         }
 
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED",
+                subject: "❌ Jenkins FAILED - API + WEB",
                 body: """
 Build FAILED
 
