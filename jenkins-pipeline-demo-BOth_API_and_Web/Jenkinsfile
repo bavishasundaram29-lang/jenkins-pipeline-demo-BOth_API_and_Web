@@ -29,8 +29,8 @@ pipeline {
             }
         }
 
-        #  TRUE PARALLEL EXECUTION (ONLY TEST RUN)
-        stage('Run API + Web in Parallel') {
+        // TRUE PARALLEL EXECUTION
+        stage('Run API + Web Tests') {
             parallel {
 
                 stage('API Test') {
@@ -55,8 +55,7 @@ pipeline {
             }
         }
 
-        #  HTML REPORT AFTER PARALLEL (SAFE)
-        stage('Generate Reports') {
+        stage('Generate HTML Reports') {
             steps {
                 bat '''
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
@@ -65,7 +64,6 @@ pipeline {
             }
         }
 
-        # Optional final report
         stage('Final Report') {
             steps {
                 bat '''
@@ -91,16 +89,42 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "API + Web Test SUCCESS",
-                body: "Build successful. Reports generated in Jenkins."
+                subject: "✔ Jenkins SUCCESS - API + Web JMeter Test",
+                body: """
+Hi,
+
+Your Jenkins pipeline executed successfully.
+
+✔ API Test: Completed  
+✔ Web Test: Completed  
+✔ Reports Generated in Jenkins UI  
+
+Build No: ${env.BUILD_NUMBER}
+Job: ${env.JOB_NAME}
+
+Regards,
+Jenkins Automation
+"""
             )
         }
 
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: " API + Web Test FAILED",
-                body: "Check Jenkins logs for details."
+                subject: "❌ Jenkins FAILED - JMeter Test",
+                body: """
+Hi,
+
+Your Jenkins pipeline failed.
+
+Please check console logs for details.
+
+Build No: ${env.BUILD_NUMBER}
+Job: ${env.JOB_NAME}
+
+Regards,
+Jenkins
+"""
             )
         }
     }
