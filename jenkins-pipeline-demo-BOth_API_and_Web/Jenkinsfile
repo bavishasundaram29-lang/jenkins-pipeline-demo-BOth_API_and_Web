@@ -1,6 +1,13 @@
 pipeline {
     agent any
 
+    environment {
+        JMETER_HOME = "C:\\Apache\\apache-jmeter-5.6.3"
+        RESULTS_DIR = "results"
+        REPORT_DIR_API = "report_api"
+        REPORT_DIR_WEB = "report_web"
+    }
+
     stages {
 
         stage('Checkout') {
@@ -10,48 +17,46 @@ pipeline {
             }
         }
 
-        stage('Run API and Web Tests in Parallel') {
-
-            parallel {
-
-                stage('API Test') {
-                    steps {
-                        bat '''
-                        jmeter -n -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx -l api_result.jtl
-                        '''
-                    }
-                }
-
-                stage('Web Test') {
-                    steps {
-                        bat '''
-                        jmeter -n -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx -l web_result.jtl
-                        '''
-                    }
-                }
+        stage('Run API Test') {
+            steps {
+                bat """
+                mkdir %RESULTS_DIR%\\api
+                jmeter -n -t api_test.jmx ^
+                -l %RESULTS_DIR%\\api\\api.jtl ^
+                -e -o %REPORT_DIR_API%
+                """
             }
         }
 
-        stage('Generate Single HTML Report') {
+        stage('Run Web Test') {
             steps {
-                bat '''
-                if exist reports rmdir /s /q reports
-
-                jmeter -g api_result.jtl -o temp_api_report
-                jmeter -g web_result.jtl -o temp_web_report
-                '''
+                bat """
+                mkdir %RESULTS_DIR%\\web
+                jmeter -n -t web_test.jmx ^
+                -l %RESULTS_DIR%\\web\\web.jtl ^
+                -e -o %REPORT_DIR_WEB%
+                """
             }
         }
 
-        stage('Publish Report (API + Web Combined View)') {
+        stage('Archive Reports') {
             steps {
-                publishHTML(target: [
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'temp_web_report',
+                archiveArtifacts artifacts: '**/report_api/**, **/report_web/**, **/results/**', fingerprint: true
+            }
+        }
+
+        stage('Publish Jenkins UI Report') {
+            steps {
+                publishHTML([
+                    reportDir: 'report_api',
                     reportFiles: 'index.html',
-                    reportName: 'JMeter Combined HTML Report'
+                    reportName: 'API HTML Report'
+                ])
+
+                publishHTML([
+                    reportDir: 'report_web',
+                    reportFiles: 'index.html',
+                    reportName: 'Web HTML Report'
                 ])
             }
         }
@@ -59,22 +64,28 @@ pipeline {
 
     post {
         always {
-            emailext(
-                subject: "Jenkins Build Report - ${BUILD_NUMBER}",
 
+            emailext (
+                subject: "Jenkins Build Report - API & Web Tests",
                 body: """
-                <h2>Jenkins JMeter Execution Report</h2>
+                Hi Team,
 
-                <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
+                Please find attached API and Web test reports.
 
-                <p>API + Web tests executed successfully.</p>
+                Jenkins Build: ${env.BUILD_NUMBER}
 
-                <p>HTML report generated and available in Jenkins UI.</p>
+                Regards,
+                Jenkins
+                """,
+                
+                to: "yourmail@gmail.com",
+
+                attachmentsPattern: """
+                    report_api/index.html,
+                    report_web/index.html
                 """,
 
-                mimeType: 'text/html',
-                to: 'bavishasundar@gmail.com',
-                attachmentsPattern: 'temp_web_report/**/*'
+                mimeType: 'text/html'
             )
         }
     }
