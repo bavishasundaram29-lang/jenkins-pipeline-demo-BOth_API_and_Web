@@ -51,11 +51,11 @@ pipeline {
             steps {
                 bat """
                 echo ^<html^> > report\\dashboard\\index.html
-                echo ^<head^>^<title^>Dashboard^</title^>^</head^> >> report\\dashboard\\index.html
+                echo ^<head^>^<title^>Jenkins Dashboard^</title^>^</head^> >> report\\dashboard\\index.html
                 echo ^<body^> >> report\\dashboard\\index.html
-                echo ^<h1^>Jenkins Test Dashboard^</h1^> >> report\\dashboard\\index.html
-                echo ^<p^>Web Report Available^</p^> >> report\\dashboard\\index.html
-                echo ^<p^>API Report Available^</p^> >> report\\dashboard\\index.html
+                echo ^<h1 style='color:blue;' ^>Test Dashboard^</h1^> >> report\\dashboard\\index.html
+                echo ^<p^>✔ Web Report Generated^</p^> >> report\\dashboard\\index.html
+                echo ^<p^>✔ API Report Generated^</p^> >> report\\dashboard\\index.html
                 echo ^</body^> >> report\\dashboard\\index.html
                 echo ^</html^> >> report\\dashboard\\index.html
                 """
@@ -78,25 +78,34 @@ pipeline {
             emailext (
                 to: "bavishasundar@gmail.com",
                 subject: "✅ Jenkins Build SUCCESS - Web & API Reports",
+                mimeType: 'text/html',
                 body: """
-Hello,
+                <html>
+                <body style="font-family: Arial;">
 
-Your Jenkins pipeline executed successfully.
+                    <h2 style="color:green;">🎉 Jenkins Build Successful</h2>
 
-📊 Reports Generated:
-- Web Report: report/web/web-report.html
-- API Report: report/api/api-report.html
-- Dashboard: report/dashboard/index.html
+                    <h3>📊 Reports Generated</h3>
+                    <ul>
+                        <li>Web Report: report/web/web-report.html</li>
+                        <li>API Report: report/api/api-report.html</li>
+                        <li>Dashboard: report/dashboard/index.html</li>
+                    </ul>
 
-📦 ZIP Files:
-- report/zips/web.zip
-- report/zips/api.zip
+                    <h3>📦 ZIP Files</h3>
+                    <ul>
+                        <li>report/zips/web.zip</li>
+                        <li>report/zips/api.zip</li>
+                    </ul>
 
-Everything is available in Jenkins workspace.
+                    <p>✔ Build completed successfully in Jenkins workspace.</p>
 
-Regards,
-Jenkins Pipeline
-"""
+                    <hr>
+                    <p style="color:gray;">Regards,<br>Jenkins Pipeline</p>
+
+                </body>
+                </html>
+                """
             )
         }
 
@@ -104,16 +113,21 @@ Jenkins Pipeline
             emailext (
                 to: "bavishasundar@gmail.com",
                 subject: "❌ Jenkins Build FAILED",
+                mimeType: 'text/html',
                 body: """
-Hello,
+                <html>
+                <body style="font-family: Arial;">
 
-Your Jenkins pipeline has failed.
+                    <h2 style="color:red;">Jenkins Build Failed</h2>
 
-Please check Jenkins console logs for details.
+                    <p>Please check Jenkins console output for errors.</p>
 
-Regards,
-Jenkins Pipeline
-"""
+                    <hr>
+                    <p style="color:gray;">Regards,<br>Jenkins Pipeline</p>
+
+                </body>
+                </html>
+                """
             )
         }
 
