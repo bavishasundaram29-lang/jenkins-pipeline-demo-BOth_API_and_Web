@@ -93,7 +93,7 @@ pipeline {
                 Regards,
                 Jenkins
                 """,
-                to: "yourmail@gmail.com",
+                to: "bavishasundar@gmail.com",
                 mimeType: 'text/html',
 
                 attachmentsPattern: '''
