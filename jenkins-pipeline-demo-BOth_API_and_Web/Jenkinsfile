@@ -3,6 +3,8 @@ pipeline {
 
     environment {
         JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+        RESULTS_DIR = "results"
+        REPORT_DIR = "report"
     }
 
     stages {
@@ -28,7 +30,7 @@ pipeline {
             }
         }
 
-        stage('Run API + WEB Parallel') {
+        stage('Run API + WEB Tests in Parallel') {
             parallel {
 
                 stage('API Test') {
@@ -62,80 +64,47 @@ pipeline {
             }
         }
 
-        stage('Zip Reports') {
-            steps {
-                bat '''
-                powershell Compress-Archive -Path report\\api -DestinationPath report\\API_Report.zip -Force
-                powershell Compress-Archive -Path report\\web -DestinationPath report\\WEB_Report.zip -Force
-                '''
-            }
-        }
-
         stage('Publish Reports in Jenkins UI') {
             steps {
-
                 publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
-                    reportName: 'API HTML Report'
+                    reportName: 'API HTML Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true
                 ])
 
                 publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
                     reportDir: 'report/web',
                     reportFiles: 'index.html',
-                    reportName: 'WEB HTML Report'
+                    reportName: 'WEB HTML Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true
                 ])
             }
         }
     }
 
     post {
-
         always {
-            archiveArtifacts artifacts: 'results/**, report/**', fingerprint: true
-        }
 
-        success {
-            emailext (
-                to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + WEB Reports",
+            archiveArtifacts artifacts: 'results/*.jtl, report/**/*', fingerprint: true
+
+            emailext(
+                to: 'bavishasundar@gmail.com',
+                subject: "Jenkins Build ${currentBuild.fullDisplayName}",
                 body: """
-Build SUCCESS ✔
+                Build Status: ${currentBuild.currentResult}
 
-✔ API Report Generated
-✔ WEB Report Generated
+                ✔ API executed
+                ✔ WEB executed
+                ✔ Reports generated
 
-Reports attached:
-- API_Report.zip
-- WEB_Report.zip
+                Jenkins Job: ${env.JOB_NAME}
+                Build Number: ${env.BUILD_NUMBER}
 
-Also available in Jenkins UI.
-
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
-""",
-                attachmentsPattern: "report/*.zip"
-            )
-        }
-
-        failure {
-            emailext (
-                to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED - API + WEB",
-                body: """
-Build FAILED ❌
-
-Check Jenkins logs for details.
-
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
-"""
+                Check Jenkins UI for HTML Reports.
+                """
             )
         }
     }
