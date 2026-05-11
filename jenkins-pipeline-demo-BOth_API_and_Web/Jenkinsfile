@@ -21,10 +21,12 @@ pipeline {
 
                 rmdir /s /q results 2>nul
                 rmdir /s /q report 2>nul
+                rmdir /s /q zipreport 2>nul
 
                 mkdir results
                 mkdir report
                 mkdir report\\web
+                mkdir zipreport
                 '''
             }
         }
@@ -63,6 +65,15 @@ pipeline {
             }
         }
 
+        stage('Create ZIP Report') {
+            steps {
+                powershell '''
+                Compress-Archive -Path report\\web\\* `
+                -DestinationPath zipreport\\WEB_Report.zip -Force
+                '''
+            }
+        }
+
         stage('Verify WEB Report') {
             steps {
                 bat '''
@@ -70,10 +81,14 @@ pipeline {
 
                 dir report\\web
 
-                if exist report\\web\\index.html (
-                    echo WEB HTML Report Generated Successfully
+                echo ================= ZIP REPORT =================
+
+                dir zipreport
+
+                if exist zipreport\\WEB_Report.zip (
+                    echo ZIP Report Generated Successfully
                 ) else (
-                    echo WEB HTML Report NOT Generated
+                    echo ZIP Report NOT Generated
                     exit /b 1
                 )
                 '''
@@ -99,7 +114,7 @@ pipeline {
 
         success {
 
-            archiveArtifacts artifacts: 'results/*.jtl,report/**', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip', fingerprint: true
 
             emailext(
                 to: 'bavishasundar@gmail.com',
@@ -111,12 +126,14 @@ Build Status: SUCCESS
 
 WEB HTML Report Generated Successfully.
 
+ZIP report attached in this mail.
+
 Please check Jenkins HTML Reports section.
                 """,
 
                 mimeType: 'text/plain',
 
-                attachmentsPattern: 'report/web/index.html'
+                attachmentsPattern: 'zipreport/WEB_Report.zip'
             )
         }
 
