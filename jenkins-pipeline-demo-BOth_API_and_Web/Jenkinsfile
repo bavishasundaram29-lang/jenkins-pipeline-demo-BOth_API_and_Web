@@ -88,7 +88,7 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "Jenkins SUCCESS - API + WEB JMeter Report",
+                subject: "✔ Jenkins SUCCESS - API + WEB JMeter Report",
                 body: """
 Build SUCCESS
 
@@ -105,7 +105,7 @@ Build: ${env.BUILD_NUMBER}
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "Jenkins FAILED - API + WEB",
+                subject: "❌ Jenkins FAILED - API + WEB",
                 body: """
 Build FAILED
 
