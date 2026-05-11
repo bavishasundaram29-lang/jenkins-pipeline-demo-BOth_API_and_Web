@@ -1,120 +1,26 @@
-pipeline {
-    agent any
-
-    environment {
-        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
-        REPO_DIR = "jenkins-pipeline-demo-BOth_API_and_Web"
+post {
+    always {
+        archiveArtifacts artifacts: 'result.jtl, report/**', fingerprint: true
     }
 
-    stages {
+    success {
+        echo 'Build Successful - Report Generated'
 
-        stage('Checkout') {
-            steps {
-                git branch: 'main',
-                url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
-            }
-        }
-
-        stage('Clean Workspace') {
-            steps {
-                bat '''
-                if exist results rmdir /s /q results
-                if exist report rmdir /s /q report
-
-                mkdir results
-                mkdir report
-                mkdir report\\api
-                mkdir report\\web
-                mkdir report\\final
-                '''
-            }
-        }
-
-        stage('Run API + Web Tests (Parallel)') {
-            parallel {
-
-                stage('API Test') {
-                    steps {
-                        bat """
-                        %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t %REPO_DIR%\\api\\api_script.jmx ^
-                        -l results\\api.jtl
-                        """
-                    }
-                }
-
-                stage('Web Test') {
-                    steps {
-                        bat """
-                        %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t %REPO_DIR%\\web\\SCR01_Jpetstore.jmx ^
-                        -l results\\web.jtl
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Generate HTML Reports') {
-            steps {
-                bat '''
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
-                '''
-            }
-        }
-
-        stage('Final Report') {
-            steps {
-                bat '''
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
-                '''
-            }
-        }
+        emailext (
+            subject: "Jenkins Build SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: "Build is successful.\n\nCheck report attached.",
+            attachmentsPattern: "report/index.html",
+            to: "bavishasundaram@gmail.com"
+        )
     }
 
-    post {
+    failure {
+        echo 'Build Failed - Check Logs'
 
-        always {
-            publishHTML([
-                reportDir: 'report\\final',
-                reportFiles: 'index.html',
-                reportName: 'JMeter Final Report',
-                keepAll: true,
-                allowMissing: false
-            ])
-        }
-
-        success {
-            emailext (
-                to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + WEB JMeter Report",
-                body: """
-Build SUCCESS
-
-✔ API Test Passed
-✔ Web Test Passed
-✔ HTML Report Generated
-
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
-"""
-            )
-        }
-
-        failure {
-            emailext (
-                to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED - API + WEB",
-                body: """
-Build FAILED
-
-Check Jenkins console logs.
-
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
-"""
-            )
-        }
+        emailext (
+            subject: "Jenkins Build FAILED - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+            body: "Build failed. Please check Jenkins logs.",
+            to: "bavishasundarm@gmail.com"
+        )
     }
 }
