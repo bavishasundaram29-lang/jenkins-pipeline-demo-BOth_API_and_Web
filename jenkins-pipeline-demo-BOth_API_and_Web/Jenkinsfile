@@ -36,7 +36,7 @@ pipeline {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t api_test.jmx ^
+                        -t api_script.jmx ^
                         -l results\\api.jtl ^
                         -e -o report\\api
                         """
@@ -47,7 +47,7 @@ pipeline {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t web_test.jmx ^
+                        -t SCR01_Jpetstore.jmx ^
                         -l results\\web.jtl ^
                         -e -o report\\web
                         """
@@ -80,7 +80,7 @@ pipeline {
 
         success {
             emailext (
-                subject: "✔ Jenkins Build SUCCESS - JMeter Report",
+                subject: " Jenkins Build SUCCESS - JMeter Report",
                 body: """
                 Hi,
 
