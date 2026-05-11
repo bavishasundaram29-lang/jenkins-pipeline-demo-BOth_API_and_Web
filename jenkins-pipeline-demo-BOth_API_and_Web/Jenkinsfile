@@ -55,11 +55,14 @@ pipeline {
             }
         }
 
-        stage('Generate Separate HTML Reports') {
+        stage('Generate HTML Reports') {
             steps {
                 bat '''
                 if exist report\\api rmdir /s /q report\\api
                 if exist report\\web rmdir /s /q report\\web
+
+                mkdir report\\api
+                mkdir report\\web
 
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
@@ -67,14 +70,11 @@ pipeline {
             }
         }
 
-        stage('Archive Reports for Email') {
+        stage('Prepare Email Artifacts (ZIP Reports)') {
             steps {
                 bat '''
-                mkdir artifacts\\API_Report
-                mkdir artifacts\\WEB_Report
-
-                xcopy /E /I report\\api artifacts\\API_Report
-                xcopy /E /I report\\web artifacts\\WEB_Report
+                powershell Compress-Archive -Path report\\api\\* -DestinationPath artifacts\\API_Report.zip -Force
+                powershell Compress-Archive -Path report\\web\\* -DestinationPath artifacts\\WEB_Report.zip -Force
                 '''
             }
         }
@@ -106,26 +106,20 @@ pipeline {
     post {
         always {
 
-            archiveArtifacts artifacts: 'results/*.jtl, artifacts/**/*', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl, artifacts/*.zip', fingerprint: true
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins Report: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                subject: "Jenkins Report - Build ${env.BUILD_NUMBER}",
                 body: """
-                Build Status: ${currentBuild.currentResult}
+Build Status: ${currentBuild.currentResult}
 
-                ✔ API Test Completed
-                ✔ WEB Test Completed
-                ✔ Reports Generated
+✔ API Report attached
+✔ WEB Report attached
 
-                📁 Attached Folders:
-                - API_Report
-                - WEB_Report
-
-                Check Jenkins UI for HTML dashboards.
-                """,
-
-                attachmentsPattern: 'artifacts/**/*.html, artifacts/**/*.css, artifacts/**/*.js'
+Check Jenkins UI for full HTML dashboards.
+""",
+                attachmentsPattern: 'artifacts/API_Report.zip, artifacts/WEB_Report.zip'
             )
         }
     }
