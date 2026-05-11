@@ -14,7 +14,7 @@ pipeline {
             }
         }
 
-        stage('Clean Workspace & Create Folders') {
+        stage('Clean Workspace') {
             steps {
                 bat '''
                 if exist results rmdir /s /q results
@@ -29,7 +29,8 @@ pipeline {
             }
         }
 
-        stage('Run JMeter Tests (Parallel)') {
+        #  TRUE PARALLEL EXECUTION (ONLY TEST RUN)
+        stage('Run API + Web in Parallel') {
             parallel {
 
                 stage('API Test') {
@@ -37,8 +38,7 @@ pipeline {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t api/api_script.jmx ^
-                        -l results\\api.jtl ^
-                        -e -o report\\api
+                        -l results\\api.jtl
                         """
                     }
                 }
@@ -48,19 +48,29 @@ pipeline {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t web/SCR01_Jpetstore.jmx ^
-                        -l results\\web.jtl ^
-                        -e -o report\\web
+                        -l results\\web.jtl
                         """
                     }
                 }
             }
         }
 
-        stage('Generate Final HTML Report') {
+        #  HTML REPORT AFTER PARALLEL (SAFE)
+        stage('Generate Reports') {
             steps {
-                bat """
+                bat '''
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
+                '''
+            }
+        }
+
+        # Optional final report
+        stage('Final Report') {
+            steps {
+                bat '''
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
-                """
+                '''
             }
         }
     }
@@ -80,41 +90,17 @@ pipeline {
 
         success {
             emailext (
-                subject: "✔ Jenkins Build SUCCESS - JMeter Report",
-                body: """
-                Hi,
-
-                Your Jenkins build completed successfully.
-
-                📊 Report is available in Jenkins UI (HTML Publisher)
-
-                Job: ${env.JOB_NAME}
-                Build No: ${env.BUILD_NUMBER}
-
-                Regards,
-                Jenkins Automation
-                """,
-                to: "bavishasundar@gmail.com"
+                to: "bavishasundar@gmail.com",
+                subject: "API + Web Test SUCCESS",
+                body: "Build successful. Reports generated in Jenkins."
             )
         }
 
         failure {
             emailext (
-                subject: "❌ Jenkins Build FAILED",
-                body: """
-                Hi,
-
-                Your Jenkins build has failed.
-
-                Please check console output.
-
-                Job: ${env.JOB_NAME}
-                Build No: ${env.BUILD_NUMBER}
-
-                Regards,
-                Jenkins
-                """,
-                to: "bavishasundar@gmail.com"
+                to: "bavishasundar@gmail.com",
+                subject: " API + Web Test FAILED",
+                body: "Check Jenkins logs for details."
             )
         }
     }
