@@ -14,15 +14,14 @@ pipeline {
             }
         }
 
-        stage('Validate Workspace') {
+        stage('Debug Workspace') {
             steps {
                 bat '''
-                echo ROOT FILE STRUCTURE:
+                echo FULL WORKSPACE STRUCTURE:
                 dir
-                echo API FOLDER:
-                dir api
-                echo WEB FOLDER:
-                dir web
+
+                echo INSIDE REPO:
+                dir jenkins-pipeline-demo-BOth_API_and_Web
                 '''
             }
         }
@@ -42,14 +41,14 @@ pipeline {
             }
         }
 
-        stage('Run API + Web (Parallel)') {
+        stage('Run API + Web Parallel') {
             parallel {
 
                 stage('API Test') {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t api/api_script.jmx ^
+                        -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx ^
                         -l results\\api.jtl
                         """
                     }
@@ -59,7 +58,7 @@ pipeline {
                     steps {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                        -t web/SCR01_Jpetstore.jmx ^
+                        -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx ^
                         -l results\\web.jtl
                         """
                     }
