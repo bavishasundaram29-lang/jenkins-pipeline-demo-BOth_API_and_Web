@@ -1,46 +1,33 @@
 pipeline {
-
     agent any
 
     environment {
-        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+        JMETER_HOME = 'C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3'
     }
 
     stages {
 
         stage('Checkout Code') {
-
             steps {
-
                 git branch: 'main',
                 url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
             }
         }
 
         stage('Clean Workspace') {
-
             steps {
-
                 bat '''
-                echo Cleaning Workspace...
-
                 rmdir /s /q results 2>nul
                 rmdir /s /q report 2>nul
-                rmdir /s /q aggregate 2>nul
-                rmdir /s /q zipreport 2>nul
 
                 mkdir results
                 mkdir report
-                mkdir aggregate
-                mkdir zipreport
                 '''
             }
         }
 
         stage('Verify Files') {
-
             steps {
-
                 bat '''
                 echo ================= WEB FILE =================
                 dir jenkins-pipeline-demo-BOth_API_and_Web\\web
@@ -52,261 +39,54 @@ pipeline {
         }
 
         stage('Run WEB Test') {
-
             steps {
-
                 bat """
-                echo Running WEB Test...
-
                 %JMETER_HOME%\\bin\\jmeter.bat -n ^
                 -t jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx ^
                 -l results\\web.jtl ^
                 -e -o report\\web
-
-                echo WEB Test Completed
                 """
             }
         }
 
         stage('Run API Test') {
-
             steps {
-
                 bat """
-                echo Running API Test...
-
                 %JMETER_HOME%\\bin\\jmeter.bat -n ^
                 -t jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx ^
                 -l results\\api.jtl ^
                 -e -o report\\api
-
-                echo API Test Completed
                 """
             }
         }
 
-        stage('Generate Detailed Aggregate Report') {
-
+        stage('Publish Aggregate Dashboard') {
             steps {
-
-                powershell '''
-
-                function Get-Percentile {
-
-                    param(
-                        [double[]]$data,
-                        [double]$percentile
-                    )
-
-                    $sorted = $data | Sort-Object
-
-                    $index = [math]::Ceiling(($percentile / 100) * $sorted.Count) - 1
-
-                    if ($index -lt 0) {
-                        $index = 0
-                    }
-
-                    return $sorted[$index]
-                }
-
-                function Generate-AggregateReport {
-
-                    param(
-                        [string]$jtlFile,
-                        [string]$outputFile,
-                        [string]$title
-                    )
-
-                    $csv = Import-Csv $jtlFile
-
-                    if ($csv.Count -eq 0) {
-
-                        $emptyHtml = @"
-<html>
-<body style='font-family:Arial;'>
-
-<h2>$title</h2>
-
-<h3>No Samples Executed</h3>
-
-</body>
-</html>
-"@
-
-                        $emptyHtml | Out-File $outputFile -Encoding utf8
-                        return
-                    }
-
-                    $grouped = $csv | Group-Object label
-
-                    $rows = ""
-
-                    foreach ($group in $grouped) {
-
-                        $label = $group.Name
-
-                        $samples = $group.Count
-
-                        $elapsed = $group.Group.elapsed | ForEach-Object { [double]$_ }
-
-                        $avg = [math]::Round((($elapsed | Measure-Object -Average).Average),2)
-
-                        $median = [math]::Round((Get-Percentile $elapsed 50),2)
-
-                        $p90 = [math]::Round((Get-Percentile $elapsed 90),2)
-
-                        $p95 = [math]::Round((Get-Percentile $elapsed 95),2)
-
-                        $min = ($elapsed | Measure-Object -Minimum).Minimum
-
-                        $max = ($elapsed | Measure-Object -Maximum).Maximum
-
-                        $passed = ($group.Group | Where-Object {$_.success -eq "true"}).Count
-
-                        $failed = ($group.Group | Where-Object {$_.success -eq "false"}).Count
-
-                        $errorPercent = [math]::Round((($failed / $samples) * 100),2)
-
-                        $start = ($group.Group.timeStamp | Measure-Object -Minimum).Minimum
-
-                        $end = ($group.Group.timeStamp | Measure-Object -Maximum).Maximum
-
-                        $duration = ($end - $start) / 1000
-
-                        if ($duration -eq 0) {
-                            $throughput = 0
-                        }
-                        else {
-                            $throughput = [math]::Round(($samples / $duration),2)
-                        }
-
-                        $rows += @"
-<tr>
-<td>$label</td>
-<td>$samples</td>
-<td>$avg</td>
-<td>$median</td>
-<td>$p90</td>
-<td>$p95</td>
-<td>$min</td>
-<td>$max</td>
-<td>$errorPercent</td>
-<td>$throughput</td>
-<td>$passed</td>
-<td>$failed</td>
-</tr>
-"@
-                    }
-
-                    $html = @"
-<html>
-
-<body style='font-family:Arial;'>
-
-<h1>$title</h1>
-
-<table border='1'
-       cellpadding='6'
-       cellspacing='0'
-       style='border-collapse:collapse;width:100%;'>
-
-<tr bgcolor='#D3D3D3'>
-
-<th>Label</th>
-<th>Samples</th>
-<th>Average(ms)</th>
-<th>Median(ms)</th>
-<th>90% Line(ms)</th>
-<th>95% Line(ms)</th>
-<th>Min(ms)</th>
-<th>Max(ms)</th>
-<th>Error %</th>
-<th>Throughput(req/sec)</th>
-<th>Passed</th>
-<th>Failed</th>
-
-</tr>
-
-$rows
-
-</table>
-
-</body>
-
-</html>
-"@
-
-                    $html | Out-File $outputFile -Encoding utf8
-                }
-
-                Generate-AggregateReport `
-                    "results\\web.jtl" `
-                    "aggregate\\web_aggregate.html" `
-                    "WEB Sample Wise Aggregate Report"
-
-                Generate-AggregateReport `
-                    "results\\api.jtl" `
-                    "aggregate\\api_aggregate.html" `
-                    "API Sample Wise Aggregate Report"
-
-                '''
+                perfReport(
+                    sourceDataFiles: 'results/*.jtl',
+                    errorFailedThreshold: 0,
+                    errorUnstableThreshold: 0
+                )
             }
         }
 
-        stage('Create ZIP Reports') {
-
-            steps {
-
-                powershell '''
-
-                Compress-Archive -Path report\\web\\* `
-                -DestinationPath zipreport\\WEB_Report.zip -Force
-
-                Compress-Archive -Path report\\api\\* `
-                -DestinationPath zipreport\\API_Report.zip -Force
-
-                '''
-            }
-        }
-
-        stage('Publish Reports in Jenkins UI') {
-
+        stage('Publish HTML Reports') {
             steps {
 
                 publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
                     reportDir: 'report/web',
                     reportFiles: 'index.html',
-                    reportName: 'WEB_HTML_Report'
+                    reportName: 'WEB HTML Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true
                 ])
 
                 publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
-                    reportName: 'API_HTML_Report'
-                ])
-
-                publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
+                    reportName: 'API HTML Report',
                     keepAll: true,
-                    reportDir: 'aggregate',
-                    reportFiles: 'web_aggregate.html',
-                    reportName: 'WEB_Aggregate_Report'
-                ])
-
-                publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'aggregate',
-                    reportFiles: 'api_aggregate.html',
-                    reportName: 'API_Aggregate_Report'
+                    alwaysLinkToLastBuild: true
                 ])
             }
         }
@@ -314,172 +94,34 @@ $rows
 
     post {
 
+        always {
+            archiveArtifacts artifacts: 'results/*.jtl', fingerprint: true
+        }
+
         success {
+            emailext(
+                subject: "Jenkins Build SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
 
-            archiveArtifacts artifacts: 'results/*.jtl,report/**,aggregate/*.html,zipreport/*.zip', fingerprint: true
+                body: """
+                <h2>JMeter Execution Successful</h2>
 
-            script {
+                <p>
+                Aggregate dashboard is available in Jenkins UI under:
+                <br><br>
+                <b>Build → Performance Report</b>
+                </p>
+                """,
 
-                def webCsv = readCSV file: 'results/web.jtl'
-                def apiCsv = readCSV file: 'results/api.jtl'
-
-                def webTotal = webCsv.size()
-                def webPass = webCsv.count { it.success == 'true' }
-                def webFail = webCsv.count { it.success == 'false' }
-
-                def webAvg = webTotal > 0 ?
-                    Math.round(
-                        webCsv.collect { it.elapsed.toDouble() }.sum() / webTotal * 100
-                    ) / 100 : 0
-
-                def apiTotal = apiCsv.size()
-                def apiPass = apiCsv.count { it.success == 'true' }
-                def apiFail = apiCsv.count { it.success == 'false' }
-
-                def apiAvg = apiTotal > 0 ?
-                    Math.round(
-                        apiCsv.collect { it.elapsed.toDouble() }.sum() / apiTotal * 100
-                    ) / 100 : 0
-
-                emailext(
-
-                    to: 'bavishasundar@gmail.com',
-
-                    subject: "JMeter Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
-
-                    mimeType: 'text/html',
-
-                    body: """
-<html>
-
-<body style='font-family:Arial;'>
-
-<h1>JMeter Execution Report</h1>
-
-<h2>Build Status : SUCCESS</h2>
-
-<br>
-
-<h2>WEB Aggregate Summary</h2>
-
-<table border='1'
-       cellpadding='6'
-       cellspacing='0'
-       style='border-collapse:collapse;'>
-
-<tr bgcolor='#D3D3D3'>
-<th>Total Samples</th>
-<th>Passed</th>
-<th>Failed</th>
-<th>Average Response Time(ms)</th>
-</tr>
-
-<tr>
-<td>${webTotal}</td>
-<td>${webPass}</td>
-<td>${webFail}</td>
-<td>${webAvg}</td>
-</tr>
-
-</table>
-
-<br><br>
-
-<h2>API Aggregate Summary</h2>
-
-<table border='1'
-       cellpadding='6'
-       cellspacing='0'
-       style='border-collapse:collapse;'>
-
-<tr bgcolor='#D3D3D3'>
-<th>Total Samples</th>
-<th>Passed</th>
-<th>Failed</th>
-<th>Average Response Time(ms)</th>
-</tr>
-
-<tr>
-<td>${apiTotal}</td>
-<td>${apiPass}</td>
-<td>${apiFail}</td>
-<td>${apiAvg}</td>
-</tr>
-
-</table>
-
-<br><br>
-
-<h2>Detailed Reports</h2>
-
-WEB Aggregate:
-<a href="${env.BUILD_URL}WEB_Aggregate_Report/">
-Open WEB Aggregate Report
-</a>
-
-<br><br>
-
-API Aggregate:
-<a href="${env.BUILD_URL}API_Aggregate_Report/">
-Open API Aggregate Report
-</a>
-
-<br><br>
-
-<h2>JMeter HTML Dashboards</h2>
-
-WEB Dashboard:
-<a href="${env.BUILD_URL}WEB_HTML_Report/">
-Open WEB Dashboard
-</a>
-
-<br><br>
-
-API Dashboard:
-<a href="${env.BUILD_URL}API_HTML_Report/">
-Open API Dashboard
-</a>
-
-<br><br>
-
-<h2>ZIP Reports</h2>
-
-WEB ZIP:
-<a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
-Download WEB ZIP
-</a>
-
-<br><br>
-
-API ZIP:
-<a href="${env.BUILD_URL}artifact/zipreport/API_Report.zip">
-Download API ZIP
-</a>
-
-</body>
-
-</html>
-                    """,
-
-                    attachmentsPattern: 'zipreport/*.zip'
-                )
-            }
+                mimeType: 'text/html',
+                to: 'bavishasundar@gmail.com'
+            )
         }
 
         failure {
-
             emailext(
-
-                to: 'bavishasundar@gmail.com',
-
-                subject: "JMeter Reports - FAILURE - Build #${env.BUILD_NUMBER}",
-
-                body: """
-Build Status: FAILURE
-
-Check Console Output:
-${env.BUILD_URL}console
-                """
+                subject: "Jenkins Build FAILURE - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "Build Failed. Check Console Output: ${env.BUILD_URL}console",
+                to: 'bavishasundar@gmail.com'
             )
         }
     }
