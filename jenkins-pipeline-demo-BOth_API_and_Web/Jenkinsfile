@@ -1,26 +1,62 @@
-post {
-    always {
-        archiveArtifacts artifacts: 'result.jtl, report/**', fingerprint: true
+pipeline {
+    agent any
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
+            }
+        }
+
+        stage('Run Tests') {
+            steps {
+                bat '''
+                jmeter -n -t jenkins-pipeline-demo-BOth_API_and_Web.jmx ^
+                -l result.jtl ^
+                -e -o report
+                '''
+            }
+        }
+
+        stage('Publish HTML Report') {
+            steps {
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report',
+                    reportFiles: 'index.html',
+                    reportName: 'JMeter HTML Report'
+                ])
+            }
+        }
     }
 
-    success {
-        echo 'Build Successful - Report Generated'
+    post {
+        always {
+            archiveArtifacts artifacts: 'result.jtl, report/**', fingerprint: true
+        }
 
-        emailext (
-            subject: "Jenkins Build SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: "Build is successful.\n\nCheck report attached.",
-            attachmentsPattern: "report/index.html",
-            to: "bavishasundaram@gmail.com"
-        )
-    }
+        success {
+            echo 'Build Successful - Report Generated'
 
-    failure {
-        echo 'Build Failed - Check Logs'
+            emailext (
+                subject: "SUCCESS - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "Build successful. Check Jenkins report.",
+                to: "bavishasundaram@gmail.com"
+            )
+        }
 
-        emailext (
-            subject: "Jenkins Build FAILED - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-            body: "Build failed. Please check Jenkins logs.",
-            to: "bavishasundarm@gmail.com"
-        )
+        failure {
+            echo 'Build Failed'
+
+            emailext (
+                subject: "FAILED - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "Build failed. Check logs.",
+                to: "bavishasundaram@gmail.com"
+            )
+        }
     }
 }
