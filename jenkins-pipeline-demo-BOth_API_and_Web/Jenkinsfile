@@ -62,8 +62,18 @@ pipeline {
             }
         }
 
+        stage('Zip Reports for Email') {
+            steps {
+                bat '''
+                powershell Compress-Archive -Path report\\api -DestinationPath report\\API_Report.zip -Force
+                powershell Compress-Archive -Path report\\web -DestinationPath report\\WEB_Report.zip -Force
+                '''
+            }
+        }
+
         stage('Publish Reports in Jenkins UI') {
             steps {
+
                 publishHTML([
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
@@ -94,34 +104,35 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + WEB HTML Reports",
+                subject: " Jenkins SUCCESS - API + WEB Reports",
                 body: """
-Build SUCCESS ✔
+Build SUCCESS 
 
-✔ API Test Completed
-✔ WEB Test Completed
+ API Report Generated
+ WEB Report Generated
 
-Reports Generated:
-- API HTML Report
-- WEB HTML Report
+Both reports are attached as ZIP folders:
 
-Available in Jenkins UI and workspace
+- API_Report.zip
+- WEB_Report.zip
+
+Also available in Jenkins UI.
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
 """,
-                attachmentsPattern: "report/api/**, report/web/**"
+                attachmentsPattern: "report/API_Report.zip, report/WEB_Report.zip"
             )
         }
 
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED - API + WEB",
+                subject: " Jenkins FAILED - API + WEB",
                 body: """
-Build FAILED ❌
+Build FAILED 
 
-Check Jenkins console logs.
+Check Jenkins logs for details.
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
