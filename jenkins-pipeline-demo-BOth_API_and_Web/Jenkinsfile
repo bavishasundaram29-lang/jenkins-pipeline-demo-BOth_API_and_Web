@@ -7,60 +7,38 @@ pipeline {
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Code') {
             steps {
                 git branch: 'main',
                 url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
             }
         }
 
-        stage('Verify Workspace') {
+        stage('Clean Old Files') {
             steps {
                 bat '''
-                echo ================= WORKSPACE =================
-                cd
+                echo Cleaning old folders...
 
-                echo ================= ROOT FILES =================
-                dir
+                rmdir /s /q results 2>nul
+                rmdir /s /q report 2>nul
 
-                echo ================= API FILES =================
-                dir api
+                mkdir results
+                mkdir report
+                mkdir report\\web
+                '''
+            }
+        }
 
+        stage('Verify WEB JMX File') {
+            steps {
+                bat '''
                 echo ================= WEB FILES =================
                 dir web
                 '''
             }
         }
 
-        stage('Clean Old Reports') {
-            steps {
-                bat '''
-                rmdir /s /q results 2>nul
-                rmdir /s /q report 2>nul
-
-                mkdir results
-                mkdir report
-                mkdir report\\api
-                mkdir report\\web
-                '''
-            }
-        }
-
-        stage('Run API Test') {
-            steps {
-                bat """
-                echo Running API Test...
-
-                %JMETER_HOME%\\bin\\jmeter.bat -n ^
-                -t api\\api_script.jmx ^
-                -l results\\api.jtl
-
-                echo API Test Completed
-                """
-            }
-        }
-
-        stage('Run WEB Test') {
+        stage('Run WEB JMeter Test') {
             steps {
                 bat """
                 echo Running WEB Test...
@@ -69,43 +47,12 @@ pipeline {
                 -t web\\SCR01_Jpetstore.jmx ^
                 -l results\\web.jtl
 
-                echo WEB Test Completed
+                echo WEB Test Execution Completed
                 """
             }
         }
 
-        stage('Check Result Files') {
-            steps {
-                bat '''
-                echo ================= RESULTS =================
-                dir results
-
-                if exist results\\api.jtl (
-                    echo API JTL Generated
-                ) else (
-                    echo API JTL NOT Generated
-                )
-
-                if exist results\\web.jtl (
-                    echo WEB JTL Generated
-                ) else (
-                    echo WEB JTL NOT Generated
-                )
-                '''
-            }
-        }
-
-        stage('Generate API Report') {
-            steps {
-                bat """
-                echo Generating API HTML Report...
-
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
-                """
-            }
-        }
-
-        stage('Generate WEB Report') {
+        stage('Generate WEB HTML Report') {
             steps {
                 bat """
                 echo Generating WEB HTML Report...
@@ -115,29 +62,23 @@ pipeline {
             }
         }
 
-        stage('Verify Reports') {
+        stage('Verify WEB Report') {
             steps {
                 bat '''
-                echo ================= API REPORT =================
-                dir report\\api
-
                 echo ================= WEB REPORT =================
                 dir report\\web
+
+                if exist report\\web\\index.html (
+                    echo WEB HTML Report Generated Successfully
+                ) else (
+                    echo WEB HTML Report NOT Generated
+                )
                 '''
             }
         }
 
-        stage('Publish Reports') {
+        stage('Publish WEB Report') {
             steps {
-
-                publishHTML([
-                    allowMissing: true,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'report/api',
-                    reportFiles: 'index.html',
-                    reportName: 'API_HTML_Report'
-                ])
 
                 publishHTML([
                     allowMissing: true,
@@ -152,15 +93,18 @@ pipeline {
     }
 
     post {
+
         always {
 
             archiveArtifacts artifacts: 'results/*.jtl,report/**', fingerprint: true
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins Build #${env.BUILD_NUMBER}",
+                subject: "WEB JMeter Report - Build #${env.BUILD_NUMBER}",
                 body: """
 Build Status: ${currentBuild.currentResult}
+
+WEB HTML Report Generated Successfully.
 
 Check Jenkins HTML Reports section.
                 """,
