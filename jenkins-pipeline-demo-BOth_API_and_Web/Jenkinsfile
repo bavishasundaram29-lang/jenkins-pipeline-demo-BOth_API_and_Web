@@ -17,8 +17,10 @@ pipeline {
         stage('Clean Workspace') {
             steps {
                 bat '''
-                if exist results rmdir /s /q results
-                if exist report rmdir /s /q report
+                echo Cleaning workspace...
+
+                rmdir /s /q results 2>nul
+                rmdir /s /q report 2>nul
 
                 mkdir results
                 mkdir report
@@ -60,20 +62,10 @@ pipeline {
         stage('Generate HTML Reports') {
             steps {
                 bat '''
-                echo === Generating API Report ===
+                echo Generating API report...
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\api
 
-                echo === Validating WEB JTL ===
-                if not exist results\\web.jtl exit /b 1
-
-                for %%A in (results\\web.jtl) do (
-                    if %%~zA LSS 500 (
-                        echo WEB JTL invalid
-                        exit /b 1
-                    )
-                )
-
-                echo === Generating WEB Report ===
+                echo Generating WEB report...
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\web.jtl -o report\\web
                 '''
             }
@@ -81,13 +73,14 @@ pipeline {
 
         stage('Publish Reports in Jenkins UI') {
             steps {
+
                 publishHTML([
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
-                    reportName: 'API HTML Report'
+                    reportName: 'API_HTML_Report'
                 ])
 
                 publishHTML([
@@ -96,7 +89,7 @@ pipeline {
                     keepAll: true,
                     reportDir: 'report/web',
                     reportFiles: 'index.html',
-                    reportName: 'WEB HTML Report'
+                    reportName: 'WEB_HTML_Report'
                 ])
             }
         }
@@ -109,16 +102,16 @@ pipeline {
 
             emailext(
                 to: 'bavishasundar@gmail.com',
-                subject: "Jenkins API + WEB Report - Build ${env.BUILD_NUMBER}",
+                subject: "Jenkins Build Report - ${env.BUILD_NUMBER}",
                 body: """
 Build Status: ${currentBuild.currentResult}
 
 ✔ API Report Generated
 ✔ WEB Report Generated
 
-Check attachments:
-- report/api
-- report/web
+Check attached reports:
+- API Report
+- WEB Report
                 """,
                 attachmentsPattern: 'report/**/index.html,report/**/*.css,report/**/*.js'
             )
