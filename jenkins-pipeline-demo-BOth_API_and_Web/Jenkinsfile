@@ -3,8 +3,6 @@ pipeline {
 
     environment {
         JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
-        RESULTS_DIR = "results"
-        REPORT_DIR  = "report"
     }
 
     stages {
@@ -16,15 +14,22 @@ pipeline {
             }
         }
 
-        stage('Clean Workspace') {
+        stage('Clean Workspace & Create Folders') {
             steps {
-                bat 'if exist results rmdir /s /q results'
-                bat 'if exist report rmdir /s /q report'
-                bat 'mkdir results'
+                bat '''
+                if exist results rmdir /s /q results
+                if exist report rmdir /s /q report
+
+                mkdir results
+                mkdir report
+                mkdir report\\api
+                mkdir report\\web
+                mkdir report\\final
+                '''
             }
         }
 
-        stage('Run JMeter Tests Parallel') {
+        stage('Run JMeter Tests (Parallel)') {
             parallel {
 
                 stage('API Test') {
@@ -51,7 +56,7 @@ pipeline {
             }
         }
 
-        stage('Generate Consolidated HTML Report') {
+        stage('Generate Final HTML Report') {
             steps {
                 bat """
                 %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
@@ -63,43 +68,52 @@ pipeline {
     post {
 
         always {
-            // Publish HTML report in Jenkins UI
             publishHTML (target: [
                 allowMissing: false,
                 alwaysLinkToLastBuild: true,
                 keepAll: true,
                 reportDir: 'report\\final',
                 reportFiles: 'index.html',
-                reportName: 'JMeter HTML Report'
+                reportName: 'JMeter Final Report'
             ])
         }
 
         success {
             emailext (
-                subject: "Jenkins Build Success - JMeter Report",
+                subject: "✔ Jenkins Build SUCCESS - JMeter Report",
                 body: """
                 Hi,
 
-                Build completed successfully.
+                Your Jenkins build completed successfully.
 
-                Report is attached / available in Jenkins UI.
+                 Report is available in Jenkins UI (HTML Publisher)
 
                 Job: ${env.JOB_NAME}
-                Build Number: ${env.BUILD_NUMBER}
+                Build No: ${env.BUILD_NUMBER}
 
                 Regards,
-                Jenkins
+                Jenkins Automation
                 """,
-                attachLog: true,
-                to: "bavishasundar@gmail.com",
-                mimeType: 'text/html'
+                to: "bavishasundar@gmail.com"
             )
         }
 
         failure {
             emailext (
-                subject: "Jenkins Build Failed - JMeter Report",
-                body: "Build failed. Please check Jenkins console output.",
+                subject: " Jenkins Build FAILED",
+                body: """
+                Hi,
+
+                Your Jenkins build has failed.
+
+                Please check console output.
+
+                Job: ${env.JOB_NAME}
+                Build No: ${env.BUILD_NUMBER}
+
+                Regards,
+                Jenkins
+                """,
                 to: "bavishasundar@gmail.com"
             )
         }
