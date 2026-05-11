@@ -119,6 +119,24 @@ pipeline {
 
                     $csv = Import-Csv $jtlFile
 
+                    if ($csv.Count -eq 0) {
+
+                        $emptyHtml = @"
+<html>
+<body style='font-family:Arial;'>
+
+<h2>$title</h2>
+
+<h3>No Samples Executed</h3>
+
+</body>
+</html>
+"@
+
+                        $emptyHtml | Out-File $outputFile -Encoding utf8
+                        return
+                    }
+
                     $grouped = $csv | Group-Object label
 
                     $rows = ""
@@ -303,24 +321,25 @@ $rows
             script {
 
                 def webCsv = readCSV file: 'results/web.jtl'
-
                 def apiCsv = readCSV file: 'results/api.jtl'
 
                 def webTotal = webCsv.size()
                 def webPass = webCsv.count { it.success == 'true' }
                 def webFail = webCsv.count { it.success == 'false' }
 
-                def webAvg = Math.round(
-                    webCsv.collect { it.elapsed.toDouble() }.sum() / webTotal * 100
-                ) / 100
+                def webAvg = webTotal > 0 ?
+                    Math.round(
+                        webCsv.collect { it.elapsed.toDouble() }.sum() / webTotal * 100
+                    ) / 100 : 0
 
                 def apiTotal = apiCsv.size()
                 def apiPass = apiCsv.count { it.success == 'true' }
                 def apiFail = apiCsv.count { it.success == 'false' }
 
-                def apiAvg = Math.round(
-                    apiCsv.collect { it.elapsed.toDouble() }.sum() / apiTotal * 100
-                ) / 100
+                def apiAvg = apiTotal > 0 ?
+                    Math.round(
+                        apiCsv.collect { it.elapsed.toDouble() }.sum() / apiTotal * 100
+                    ) / 100 : 0
 
                 emailext(
 
