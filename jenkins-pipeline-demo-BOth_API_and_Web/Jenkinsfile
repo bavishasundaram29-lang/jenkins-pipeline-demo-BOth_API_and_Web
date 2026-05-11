@@ -1,57 +1,140 @@
-stage('Generate Aggregate Dashboard') {
-    steps {
+pipeline {
 
-        powershell '''
+    agent any
 
-        function Get-Percentile {
-            param(
-                [double[]]$data,
-                [double]$percentile
-            )
+    environment {
+        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+    }
 
-            $sorted = $data | Sort-Object
-            $index = [math]::Ceiling(($percentile / 100) * $sorted.Count) - 1
+    stages {
 
-            if ($index -lt 0) {
-                $index = 0
+        stage('Checkout Code') {
+            steps {
+
+                git branch: 'main',
+                url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
             }
-
-            return $sorted[$index]
         }
 
-        # ==========================================================
-        # WEB REPORT
-        # ==========================================================
+        stage('Clean Workspace') {
+            steps {
 
-        $webCsv = Import-Csv "results\\web.jtl"
+                bat '''
+                echo Cleaning workspace...
 
-        $webElapsed = $webCsv.elapsed | ForEach-Object { [double]$_ }
+                rmdir /s /q results 2>nul
+                rmdir /s /q report 2>nul
+                rmdir /s /q zipreport 2>nul
+                rmdir /s /q aggregate 2>nul
 
-        $webTotal = $webCsv.Count
-        $webPass = ($webCsv | Where-Object {$_.success -eq "true"}).Count
-        $webFail = ($webCsv | Where-Object {$_.success -eq "false"}).Count
-
-        $webAvg = [math]::Round((($webElapsed | Measure-Object -Average).Average),2)
-        $webMedian = [math]::Round((Get-Percentile $webElapsed 50),2)
-        $web90 = [math]::Round((Get-Percentile $webElapsed 90),2)
-        $web95 = [math]::Round((Get-Percentile $webElapsed 95),2)
-
-        $webMin = ($webElapsed | Measure-Object -Minimum).Minimum
-        $webMax = ($webElapsed | Measure-Object -Maximum).Maximum
-
-        $webStart = ($webCsv.timeStamp | Measure-Object -Minimum).Minimum
-        $webEnd = ($webCsv.timeStamp | Measure-Object -Maximum).Maximum
-
-        $webDuration = ($webEnd - $webStart) / 1000
-
-        if ($webDuration -eq 0) {
-            $webThroughput = 0
-        }
-        else {
-            $webThroughput = [math]::Round(($webTotal / $webDuration),2)
+                mkdir results
+                mkdir report
+                mkdir zipreport
+                mkdir aggregate
+                '''
+            }
         }
 
-        $webHtml = @"
+        stage('Verify Files') {
+            steps {
+
+                bat '''
+                echo ================= WEB FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
+
+                echo ================= API FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
+                '''
+            }
+        }
+
+        stage('Run WEB Test') {
+            steps {
+
+                bat """
+                echo Running WEB Test...
+
+                %JMETER_HOME%\\bin\\jmeter.bat -n ^
+                -t jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx ^
+                -l results\\web.jtl ^
+                -e -o report\\web
+
+                echo WEB Test Completed
+                """
+            }
+        }
+
+        stage('Run API Test') {
+            steps {
+
+                bat """
+                echo Running API Test...
+
+                %JMETER_HOME%\\bin\\jmeter.bat -n ^
+                -t jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx ^
+                -l results\\api.jtl ^
+                -e -o report\\api
+
+                echo API Test Completed
+                """
+            }
+        }
+
+        stage('Generate Aggregate Dashboard') {
+
+            steps {
+
+                powershell '''
+
+                function Get-Percentile {
+                    param(
+                        [double[]]$data,
+                        [double]$percentile
+                    )
+
+                    $sorted = $data | Sort-Object
+                    $index = [math]::Ceiling(($percentile / 100) * $sorted.Count) - 1
+
+                    if ($index -lt 0) {
+                        $index = 0
+                    }
+
+                    return $sorted[$index]
+                }
+
+                # ==========================================================
+                # WEB REPORT
+                # ==========================================================
+
+                $webCsv = Import-Csv "results\\web.jtl"
+
+                $webElapsed = $webCsv.elapsed | ForEach-Object { [double]$_ }
+
+                $webTotal = $webCsv.Count
+                $webPass = ($webCsv | Where-Object {$_.success -eq "true"}).Count
+                $webFail = ($webCsv | Where-Object {$_.success -eq "false"}).Count
+
+                $webAvg = [math]::Round((($webElapsed | Measure-Object -Average).Average),2)
+                $webMedian = [math]::Round((Get-Percentile $webElapsed 50),2)
+                $web90 = [math]::Round((Get-Percentile $webElapsed 90),2)
+                $web95 = [math]::Round((Get-Percentile $webElapsed 95),2)
+
+                $webMin = ($webElapsed | Measure-Object -Minimum).Minimum
+                $webMax = ($webElapsed | Measure-Object -Maximum).Maximum
+
+                $webStart = ($webCsv.timeStamp | Measure-Object -Minimum).Minimum
+                $webEnd = ($webCsv.timeStamp | Measure-Object -Maximum).Maximum
+
+                $webDuration = ($webEnd - $webStart) / 1000
+
+                if ($webDuration -eq 0) {
+                    $webThroughput = 0
+                }
+                else {
+                    $webThroughput = [math]::Round(($webTotal / $webDuration),2)
+                }
+
+                $webHtml = @"
 <html>
 <body>
 
@@ -105,41 +188,41 @@ stage('Generate Aggregate Dashboard') {
 </html>
 "@
 
-        $webHtml | Out-File aggregate\\web_aggregate.html -Encoding utf8
+                $webHtml | Out-File aggregate\\web_aggregate.html -Encoding utf8
 
-        # ==========================================================
-        # API REPORT
-        # ==========================================================
+                # ==========================================================
+                # API REPORT
+                # ==========================================================
 
-        $apiCsv = Import-Csv "results\\api.jtl"
+                $apiCsv = Import-Csv "results\\api.jtl"
 
-        $apiElapsed = $apiCsv.elapsed | ForEach-Object { [double]$_ }
+                $apiElapsed = $apiCsv.elapsed | ForEach-Object { [double]$_ }
 
-        $apiTotal = $apiCsv.Count
-        $apiPass = ($apiCsv | Where-Object {$_.success -eq "true"}).Count
-        $apiFail = ($apiCsv | Where-Object {$_.success -eq "false"}).Count
+                $apiTotal = $apiCsv.Count
+                $apiPass = ($apiCsv | Where-Object {$_.success -eq "true"}).Count
+                $apiFail = ($apiCsv | Where-Object {$_.success -eq "false"}).Count
 
-        $apiAvg = [math]::Round((($apiElapsed | Measure-Object -Average).Average),2)
-        $apiMedian = [math]::Round((Get-Percentile $apiElapsed 50),2)
-        $api90 = [math]::Round((Get-Percentile $apiElapsed 90),2)
-        $api95 = [math]::Round((Get-Percentile $apiElapsed 95),2)
+                $apiAvg = [math]::Round((($apiElapsed | Measure-Object -Average).Average),2)
+                $apiMedian = [math]::Round((Get-Percentile $apiElapsed 50),2)
+                $api90 = [math]::Round((Get-Percentile $apiElapsed 90),2)
+                $api95 = [math]::Round((Get-Percentile $apiElapsed 95),2)
 
-        $apiMin = ($apiElapsed | Measure-Object -Minimum).Minimum
-        $apiMax = ($apiElapsed | Measure-Object -Maximum).Maximum
+                $apiMin = ($apiElapsed | Measure-Object -Minimum).Minimum
+                $apiMax = ($apiElapsed | Measure-Object -Maximum).Maximum
 
-        $apiStart = ($apiCsv.timeStamp | Measure-Object -Minimum).Minimum
-        $apiEnd = ($apiCsv.timeStamp | Measure-Object -Maximum).Maximum
+                $apiStart = ($apiCsv.timeStamp | Measure-Object -Minimum).Minimum
+                $apiEnd = ($apiCsv.timeStamp | Measure-Object -Maximum).Maximum
 
-        $apiDuration = ($apiEnd - $apiStart) / 1000
+                $apiDuration = ($apiEnd - $apiStart) / 1000
 
-        if ($apiDuration -eq 0) {
-            $apiThroughput = 0
-        }
-        else {
-            $apiThroughput = [math]::Round(($apiTotal / $apiDuration),2)
-        }
+                if ($apiDuration -eq 0) {
+                    $apiThroughput = 0
+                }
+                else {
+                    $apiThroughput = [math]::Round(($apiTotal / $apiDuration),2)
+                }
 
-        $apiHtml = @"
+                $apiHtml = @"
 <html>
 <body>
 
@@ -193,8 +276,162 @@ stage('Generate Aggregate Dashboard') {
 </html>
 "@
 
-        $apiHtml | Out-File aggregate\\api_aggregate.html -Encoding utf8
+                $apiHtml | Out-File aggregate\\api_aggregate.html -Encoding utf8
 
-        '''
+                '''
+            }
+        }
+
+        stage('Create ZIP Reports') {
+
+            steps {
+
+                powershell '''
+
+                Compress-Archive -Path report\\web\\* `
+                -DestinationPath zipreport\\WEB_Report.zip -Force
+
+                Compress-Archive -Path report\\api\\* `
+                -DestinationPath zipreport\\API_Report.zip -Force
+
+                '''
+            }
+        }
+
+        stage('Publish Reports in Jenkins UI') {
+
+            steps {
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report/web',
+                    reportFiles: 'index.html',
+                    reportName: 'WEB_HTML_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report/api',
+                    reportFiles: 'index.html',
+                    reportName: 'API_HTML_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'aggregate',
+                    reportFiles: 'web_aggregate.html',
+                    reportName: 'WEB_Aggregate_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'aggregate',
+                    reportFiles: 'api_aggregate.html',
+                    reportName: 'API_Aggregate_Report'
+                ])
+            }
+        }
+    }
+
+    post {
+
+        success {
+
+            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip,aggregate/*.html', fingerprint: true
+
+            script {
+
+                def webTable = readFile(file: 'aggregate/web_aggregate.html', encoding: 'UTF-8')
+                def apiTable = readFile(file: 'aggregate/api_aggregate.html', encoding: 'UTF-8')
+
+                emailext(
+
+                    to: 'bavishasundar@gmail.com',
+
+                    subject: "JMeter WEB & API Reports - SUCCESS - Build #${env.BUILD_NUMBER}",
+
+                    mimeType: 'text/html',
+
+                    body: """
+<html>
+<body>
+
+<h1>JMeter Execution Report</h1>
+
+<h2>Build Status : SUCCESS</h2>
+
+<br>
+
+<h2>WEB HTML REPORT</h2>
+
+<a href="${env.BUILD_URL}WEB_HTML_Report/">
+Open WEB HTML Report
+</a>
+
+<br><br>
+
+<h2>API HTML REPORT</h2>
+
+<a href="${env.BUILD_URL}API_HTML_Report/">
+Open API HTML Report
+</a>
+
+<br><br>
+
+${webTable}
+
+<br><br>
+
+${apiTable}
+
+<br><br>
+
+<h2>Download ZIP Reports</h2>
+
+WEB ZIP:
+<a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
+Download WEB ZIP
+</a>
+
+<br><br>
+
+API ZIP:
+<a href="${env.BUILD_URL}artifact/zipreport/API_Report.zip">
+Download API ZIP
+</a>
+
+</body>
+</html>
+                    """,
+
+                    attachmentsPattern: 'zipreport/*.zip'
+                )
+            }
+        }
+
+        failure {
+
+            emailext(
+
+                to: 'bavishasundar@gmail.com',
+
+                subject: "JMeter WEB & API Reports - FAILURE - Build #${env.BUILD_NUMBER}",
+
+                body: """
+Build Status: FAILURE
+
+Check Jenkins Console Output:
+${env.BUILD_URL}console
+                """
+            )
+        }
     }
 }
