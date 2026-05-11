@@ -14,13 +14,14 @@ pipeline {
             }
         }
 
-        stage('Validate Files') {
+        stage('Validate Workspace') {
             steps {
                 bat '''
-                echo Checking API file...
+                echo ROOT FILE STRUCTURE:
+                dir
+                echo API FOLDER:
                 dir api
-
-                echo Checking Web file...
+                echo WEB FOLDER:
                 dir web
                 '''
             }
@@ -41,8 +42,7 @@ pipeline {
             }
         }
 
-        // TRUE PARALLEL EXECUTION (ONLY RUN TESTS)
-        stage('Run API + Web Tests') {
+        stage('Run API + Web (Parallel)') {
             parallel {
 
                 stage('API Test') {
@@ -89,9 +89,6 @@ pipeline {
 
         always {
             publishHTML (target: [
-                allowMissing: false,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
                 reportDir: 'report\\final',
                 reportFiles: 'index.html',
                 reportName: 'JMeter Final Report'
@@ -101,21 +98,16 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + Web Test",
+                subject: "✔ Jenkins SUCCESS - API + WEB",
                 body: """
-Hi,
+Build SUCCESS
 
-Your Jenkins pipeline executed successfully.
-
-✔ API Test Completed  
-✔ Web Test Completed  
-✔ Reports Generated  
+✔ API executed
+✔ Web executed
+✔ Reports generated
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
-
-Regards,
-Jenkins Automation
 """
             )
         }
@@ -123,19 +115,14 @@ Jenkins Automation
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED - JMeter Test",
+                subject: "❌ Jenkins FAILED",
                 body: """
-Hi,
+Build FAILED
 
-Your Jenkins pipeline FAILED.
-
-Please check logs.
+Check Jenkins logs.
 
 Job: ${env.JOB_NAME}
 Build: ${env.BUILD_NUMBER}
-
-Regards,
-Jenkins
 """
             )
         }
