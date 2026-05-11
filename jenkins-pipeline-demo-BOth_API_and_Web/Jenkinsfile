@@ -16,7 +16,7 @@ pipeline {
                 stage('API Test') {
                     steps {
                         bat '''
-                        jmeter -n -t api/api_script.jmx -l api_result.jtl
+                        jmeter -n -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx -l api_result.jtl
                         '''
                     }
                 }
@@ -24,7 +24,7 @@ pipeline {
                 stage('Web Test') {
                     steps {
                         bat '''
-                        jmeter -n -t web/SCR01_Jpetstore.jmx -l web_result.jtl
+                        jmeter -n -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx -l web_result.jtl
                         '''
                     }
                 }
@@ -42,6 +42,7 @@ pipeline {
         stage('Generate HTML Report') {
             steps {
                 bat '''
+                rmdir /s /q reports
                 jmeter -g final_result.jtl -o reports
                 '''
             }
@@ -49,7 +50,7 @@ pipeline {
 
         stage('Publish HTML Report') {
             steps {
-                publishHTML([
+                publishHTML(target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
@@ -73,24 +74,18 @@ pipeline {
 
                 <p>Build completed successfully.</p>
 
-                <p>
-                <b>Build Number:</b> ${BUILD_NUMBER}
-                </p>
+                <p><b>Build Number:</b> ${BUILD_NUMBER}</p>
 
-                <p>
-                API and Web scripts executed in parallel successfully.
-                </p>
+                <p>API and Web scripts executed in parallel successfully.</p>
 
-                <p>
-                HTML Report has been attached.
-                </p>
+                <p>HTML Report has been attached.</p>
                 """,
 
                 mimeType: 'text/html',
 
                 to: 'bavishasundar@gmail.com',
 
-                attachmentsPattern: 'reports/**'
+                attachmentsPattern: 'reports/**/*'
             )
         }
     }
