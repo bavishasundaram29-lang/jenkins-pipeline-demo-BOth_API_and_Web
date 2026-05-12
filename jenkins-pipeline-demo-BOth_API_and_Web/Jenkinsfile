@@ -20,7 +20,7 @@ pipeline {
                         echo ^<html^>
                         echo ^<body^>
                         echo ^<h2^>Web Report^</h2^>
-                        echo ^<p style='color:green'^>SUCCESS^</p^>
+                        echo ^<p^>Web report generated successfully^</p^>
                         echo ^</body^>
                         echo ^</html^>
                         ) > report\\web\\web-report.html
@@ -36,7 +36,7 @@ pipeline {
                         echo ^<html^>
                         echo ^<body^>
                         echo ^<h2^>API Report^</h2^>
-                        echo ^<p style='color:green'^>SUCCESS^</p^>
+                        echo ^<p^>API report generated successfully^</p^>
                         echo ^</body^>
                         echo ^</html^>
                         ) > report\\api\\api-report.html
@@ -54,7 +54,7 @@ pipeline {
                 echo ^<html^>
                 echo ^<body^>
                 echo ^<h2^>Dashboard^</h2^>
-                echo ^<p^>All Systems OK^</p^>
+                echo ^<p^>All systems operational^</p^>
                 echo ^</body^>
                 echo ^</html^>
                 ) > report\\dashboard\\index.html
@@ -71,10 +71,10 @@ pipeline {
                 echo ^<body^>
                 echo ^<h2^>Aggregate Report^</h2^>
                 echo ^<table border='1' cellpadding='8'^>
-                echo ^<tr^>^<th^>Module^</th^>^<th^>Status^</th^>^</tr^>
-                echo ^<tr^>^<td^>Web Report^</td^>^<td^>SUCCESS^</td^>^</tr^>
-                echo ^<tr^>^<td^>API Report^</td^>^<td^>SUCCESS^</td^>^</tr^>
-                echo ^<tr^>^<td^>Dashboard^</td^>^<td^>SUCCESS^</td^>^</tr^>
+                echo ^<tr^>^<th^>Module^</th^>^<th^>Details^</th^>^</tr^>
+                echo ^<tr^>^<td^>Web Report^</td^>^<td^>Web report generated successfully^</td^>^</tr^>
+                echo ^<tr^>^<td^>API Report^</td^>^<td^>API report generated successfully^</td^>^</tr^>
+                echo ^<tr^>^<td^>Dashboard^</td^>^<td^>All systems operational^</td^>^</tr^>
                 echo ^</table^>
                 echo ^</body^>
                 echo ^</html^>
@@ -123,6 +123,16 @@ pipeline {
                 ])
             }
         }
+
+        stage('Read Reports for Email') {
+            steps {
+                script {
+                    env.WEB_REPORT = readFile('report/web/web-report.html')
+                    env.API_REPORT = readFile('report/api/api-report.html')
+                    env.DASHBOARD_REPORT = readFile('report/dashboard/index.html')
+                }
+            }
+        }
     }
 
     post {
@@ -130,7 +140,7 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✅ Jenkins Build SUCCESS - Reports Ready",
+                subject: "✅ Jenkins Build SUCCESS - Full Reports",
                 mimeType: "text/html",
                 body: """
                 <html>
@@ -138,34 +148,24 @@ pipeline {
 
                 <h2 style="color:green;">🎉 Build Successful</h2>
 
-                <h3>📊 Aggregate Report</h3>
+                <h3>📊 Web Report</h3>
+                <pre>${WEB_REPORT}</pre>
 
-                <table border="1" cellpadding="8">
-                    <tr>
-                        <th>Module</th>
-                        <th>Status</th>
-                    </tr>
-                    <tr>
-                        <td>Web Report</td>
-                        <td>SUCCESS</td>
-                    </tr>
-                    <tr>
-                        <td>API Report</td>
-                        <td>SUCCESS</td>
-                    </tr>
-                    <tr>
-                        <td>Dashboard</td>
-                        <td>SUCCESS</td>
-                    </tr>
-                </table>
+                <h3>📊 API Report</h3>
+                <pre>${API_REPORT}</pre>
 
-                <h3>📦 Download Reports</h3>
+                <h3>📊 Dashboard</h3>
+                <pre>${DASHBOARD_REPORT}</pre>
+
+                <hr>
+
+                <h3>📦 Download Links</h3>
                 <ul>
-                    <li><a href="${BUILD_URL}HTML_Report/Web_Report/">Web Report (Jenkins UI)</a></li>
-                    <li><a href="${BUILD_URL}HTML_Report/API_Report/">API Report (Jenkins UI)</a></li>
-                    <li><a href="${BUILD_URL}HTML_Report/Dashboard/">Dashboard (Jenkins UI)</a></li>
-                    <li><a href="${BUILD_URL}HTML_Report/Aggregate_Report/">Aggregate Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/">Download Workspace Files</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/web/web-report.html">Web Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/api/api-report.html">API Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/dashboard/index.html">Dashboard</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/aggregate/aggregate.html">Aggregate Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/">Download All Files</a></li>
                 </ul>
 
                 <p><b>Build:</b> ${JOB_NAME} #${BUILD_NUMBER}</p>
@@ -185,3 +185,4 @@ pipeline {
         }
     }
 }
+\
