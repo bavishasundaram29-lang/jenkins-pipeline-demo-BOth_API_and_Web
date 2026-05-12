@@ -2,8 +2,8 @@ pipeline {
     agent any
 
     environment {
-        JMETER_HOME = 'C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3'
-        PATH = "${JMETER_HOME}\\bin;${env.PATH}"
+        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+        JMETER = "${JMETER_HOME}\\bin\\jmeter.bat"
     }
 
     stages {
@@ -26,7 +26,8 @@ pipeline {
                 mkdir report
                 mkdir report\\web
                 mkdir report\\api
-                mkdir report\\aggregate
+                mkdir report\\web-aggregate
+                mkdir report\\api-aggregate
                 mkdir zipreport
                 '''
             }
@@ -35,7 +36,7 @@ pipeline {
         stage('Run WEB Test') {
             steps {
                 bat '''
-                call "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
+                "%JMETER%" -n ^
                 -t "jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx" ^
                 -l "results\\web.jtl" ^
                 -e -o "report\\web"
@@ -46,7 +47,7 @@ pipeline {
         stage('Run API Test') {
             steps {
                 bat '''
-                call "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
+                "%JMETER%" -n ^
                 -t "jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx" ^
                 -l "results\\api.jtl" ^
                 -e -o "report\\api"
@@ -54,36 +55,18 @@ pipeline {
             }
         }
 
-        stage('Generate Aggregate Report') {
+        stage('Generate WEB Aggregate Report') {
             steps {
                 bat '''
-                copy results\\web.jtl results\\aggregate.jtl
-                powershell -Command "Get-Content results\\api.jtl | Select-Object -Skip 1 | Add-Content results\\aggregate.jtl"
-
-                call "%JMETER_HOME%\\bin\\jmeter.bat" -g results\\aggregate.jtl -o report\\aggregate
+                "%JMETER%" -g "results\\web.jtl" -o "report\\web-aggregate"
                 '''
             }
         }
 
-        stage('Verify Reports') {
+        stage('Generate API Aggregate Report') {
             steps {
                 bat '''
-                if not exist report\\web\\index.html (
-                    echo WEB Report Missing
-                    exit /b 1
-                )
-
-                if not exist report\\api\\index.html (
-                    echo API Report Missing
-                    exit /b 1
-                )
-
-                if not exist report\\aggregate\\index.html (
-                    echo Aggregate Report Missing
-                    exit /b 1
-                )
-
-                echo All Reports Generated Successfully
+                "%JMETER%" -g "results\\api.jtl" -o "report\\api-aggregate"
                 '''
             }
         }
@@ -93,7 +76,8 @@ pipeline {
                 powershell '''
                 Compress-Archive -Path report\\web\\* -DestinationPath zipreport\\WEB_Report.zip -Force
                 Compress-Archive -Path report\\api\\* -DestinationPath zipreport\\API_Report.zip -Force
-                Compress-Archive -Path report\\aggregate\\* -DestinationPath zipreport\\Aggregate_Report.zip -Force
+                Compress-Archive -Path report\\web-aggregate\\* -DestinationPath zipreport\\WEB_Aggregate_Report.zip -Force
+                Compress-Archive -Path report\\api-aggregate\\* -DestinationPath zipreport\\API_Aggregate_Report.zip -Force
                 '''
             }
         }
@@ -107,7 +91,7 @@ pipeline {
                     keepAll: true,
                     reportDir: 'report/web',
                     reportFiles: 'index.html',
-                    reportName: 'WEB_HTML_Report'
+                    reportName: 'WEB HTML Report'
                 ])
 
                 publishHTML([
@@ -116,16 +100,25 @@ pipeline {
                     keepAll: true,
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
-                    reportName: 'API_HTML_Report'
+                    reportName: 'API HTML Report'
                 ])
 
                 publishHTML([
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
-                    reportDir: 'report/aggregate',
+                    reportDir: 'report/web-aggregate',
                     reportFiles: 'index.html',
-                    reportName: 'Aggregate_HTML_Report'
+                    reportName: 'WEB Aggregate Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report/api-aggregate',
+                    reportFiles: 'index.html',
+                    reportName: 'API Aggregate Report'
                 ])
             }
         }
@@ -133,113 +126,67 @@ pipeline {
 
     post {
 
-        success {
+        always {
 
             script {
 
-                def webStats = """
-                <tr>
-                <td>SCR01_T01_list_user</td>
-                <td>10</td>
-                <td>0</td>
-                <td>0%</td>
-                <td>540.20</td>
-                <td>242</td>
-                <td>1018</td>
-                <td>421.50</td>
-                <td>1011.10</td>
-                </tr>
+                def webStats = readJSON file: 'report/web-aggregate/statistics.json'
+                def apiStats = readJSON file: 'report/api-aggregate/statistics.json'
 
-                <tr>
-                <td>SCR01_T02_create_user</td>
-                <td>10</td>
-                <td>0</td>
-                <td>0%</td>
-                <td>211.80</td>
-                <td>154</td>
-                <td>313</td>
-                <td>204.50</td>
-                <td>307.90</td>
-                </tr>
+                def webRows = ""
+                def apiRows = ""
 
-                <tr>
-                <td>SCR01_T03_update_user</td>
-                <td>10</td>
-                <td>0</td>
-                <td>0%</td>
-                <td>179.70</td>
-                <td>148</td>
-                <td>240</td>
-                <td>160.50</td>
-                <td>238.20</td>
-                </tr>
+                webStats.each { key, value ->
+                    if (key != 'Total') {
+                        webRows += """
+                        <tr>
+                            <td>${key}</td>
+                            <td>${value.sampleCount}</td>
+                            <td>${value.errorCount}</td>
+                            <td>${String.format("%.2f", value.errorPct)}%</td>
+                            <td>${String.format("%.2f", value.meanResTime)}</td>
+                            <td>${value.minResTime}</td>
+                            <td>${value.maxResTime}</td>
+                            <td>${String.format("%.2f", value.medianResTime)}</td>
+                            <td>${String.format("%.2f", value.pct1ResTime)}</td>
+                        </tr>
+                        """
+                    }
+                }
 
-                <tr>
-                <td>SCR01_T04_delete_user</td>
-                <td>10</td>
-                <td>0</td>
-                <td>0%</td>
-                <td>203.40</td>
-                <td>150</td>
-                <td>262</td>
-                <td>213.00</td>
-                <td>260.50</td>
-                </tr>
-                """
-
-                def apiStats = """
-                <tr>
-                <td>T01_Launch</td>
-                <td>10</td>
-                <td>0</td>
-                <td>0%</td>
-                <td>674.50</td>
-                <td>222</td>
-                <td>1429</td>
-                <td>537.00</td>
-                <td>1417.00</td>
-                </tr>
-
-                <tr>
-                <td>T02_Signin</td>
-                <td>10</td>
-                <td>10</td>
-                <td>100%</td>
-                <td>489.90</td>
-                <td>472</td>
-                <td>509</td>
-                <td>487.50</td>
-                <td>508.40</td>
-                </tr>
-                """
-
-                def aggregateStats = """
-                <tr>
-                <td>Combined WEB + API</td>
-                <td>60</td>
-                <td>10</td>
-                <td>16.66%</td>
-                <td>350.00</td>
-                <td>148</td>
-                <td>1429</td>
-                <td>320.00</td>
-                <td>1018.00</td>
-                </tr>
-                """
+                apiStats.each { key, value ->
+                    if (key != 'Total') {
+                        apiRows += """
+                        <tr>
+                            <td>${key}</td>
+                            <td>${value.sampleCount}</td>
+                            <td>${value.errorCount}</td>
+                            <td>${String.format("%.2f", value.errorPct)}%</td>
+                            <td>${String.format("%.2f", value.meanResTime)}</td>
+                            <td>${value.minResTime}</td>
+                            <td>${value.maxResTime}</td>
+                            <td>${String.format("%.2f", value.medianResTime)}</td>
+                            <td>${String.format("%.2f", value.pct1ResTime)}</td>
+                        </tr>
+                        """
+                    }
+                }
 
                 emailext(
-                    subject: "Build SUCCESS - WEB/API/Aggregate Reports",
-                    to: "bavishasundar@gmail.com",
+                    subject: "Jenkins Build Report - ${currentBuild.currentResult}",
                     mimeType: 'text/html',
+                    to: 'bavishasundar@gmail.com',
 
                     body: """
                     <html>
                     <body>
 
-                    <h2>WEB Report Statistics</h2>
+                    <h2>Build Status : ${currentBuild.currentResult}</h2>
 
-                    <table border="1" cellpadding="8" cellspacing="0">
-                        <tr bgcolor="#D6EAF8">
+                    <h2>WEB Aggregate Report</h2>
+
+                    <table border="1" cellpadding="5" cellspacing="0">
+                        <tr>
                             <th>Label</th>
                             <th>Samples</th>
                             <th>Fail</th>
@@ -251,16 +198,16 @@ pipeline {
                             <th>90th pct</th>
                         </tr>
 
-                        ${webStats}
+                        ${webRows}
 
                     </table>
 
                     <br><br>
 
-                    <h2>API Report Statistics</h2>
+                    <h2>API Aggregate Report</h2>
 
-                    <table border="1" cellpadding="8" cellspacing="0">
-                        <tr bgcolor="#D6EAF8">
+                    <table border="1" cellpadding="5" cellspacing="0">
+                        <tr>
                             <th>Label</th>
                             <th>Samples</th>
                             <th>Fail</th>
@@ -272,77 +219,19 @@ pipeline {
                             <th>90th pct</th>
                         </tr>
 
-                        ${apiStats}
+                        ${apiRows}
 
                     </table>
 
                     <br><br>
 
-                    <h2>Aggregate Report Statistics</h2>
-
-                    <table border="1" cellpadding="8" cellspacing="0">
-                        <tr bgcolor="#D6EAF8">
-                            <th>Label</th>
-                            <th>Samples</th>
-                            <th>Fail</th>
-                            <th>Error %</th>
-                            <th>Average</th>
-                            <th>Min</th>
-                            <th>Max</th>
-                            <th>Median</th>
-                            <th>90th pct</th>
-                        </tr>
-
-                        ${aggregateStats}
-
-                    </table>
-
-                    <br><br>
-
-                    <h2>Jenkins Reports</h2>
+                    <h3>Reports Attached:</h3>
 
                     <ul>
-                        <li>
-                            <a href="${BUILD_URL}WEB_HTML_Report/">
-                            Open WEB Report
-                            </a>
-                        </li>
-
-                        <li>
-                            <a href="${BUILD_URL}API_HTML_Report/">
-                            Open API Report
-                            </a>
-                        </li>
-
-                        <li>
-                            <a href="${BUILD_URL}Aggregate_HTML_Report/">
-                            Open Aggregate Report
-                            </a>
-                        </li>
-                    </ul>
-
-                    <br><br>
-
-                    <h2>Download ZIP Reports</h2>
-
-                    <ul>
-                        <li>
-                            <a href="${BUILD_URL}artifact/zipreport/WEB_Report.zip">
-                            Download WEB ZIP
-                            </a>
-                        </li>
-
-                        <li>
-                            <a href="${BUILD_URL}artifact/zipreport/API_Report.zip">
-                            Download API ZIP
-                            </a>
-                        </li>
-
-                        <li>
-                            <a href="${BUILD_URL}artifact/zipreport/Aggregate_Report.zip">
-                            Download Aggregate ZIP
-                            </a>
-                        </li>
+                        <li>WEB_Report.zip</li>
+                        <li>API_Report.zip</li>
+                        <li>WEB_Aggregate_Report.zip</li>
+                        <li>API_Aggregate_Report.zip</li>
                     </ul>
 
                     </body>
@@ -352,28 +241,9 @@ pipeline {
                     attachmentsPattern: 'zipreport/*.zip'
                 )
             }
-        }
 
-        failure {
+            archiveArtifacts artifacts: 'report/**/*, zipreport/*.zip', fingerprint: true
 
-            emailext(
-                subject: "Build FAILED - WEB/API/Aggregate Execution",
-                to: "bavishasundar@gmail.com",
-
-                body: """
-                Build Failed
-
-                Job Name : ${JOB_NAME}
-                Build No  : ${BUILD_NUMBER}
-
-                Console Output:
-                ${BUILD_URL}console
-                """
-            )
-        }
-
-        always {
-            archiveArtifacts artifacts: 'zipreport/*.zip', fingerprint: true
         }
     }
 }
