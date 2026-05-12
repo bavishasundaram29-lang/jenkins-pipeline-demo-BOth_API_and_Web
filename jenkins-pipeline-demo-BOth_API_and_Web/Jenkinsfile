@@ -26,6 +26,7 @@ pipeline {
                 mkdir report
                 mkdir report\\web
                 mkdir report\\api
+                mkdir report\\aggregate
                 mkdir zipreport
                 '''
             }
@@ -53,6 +54,17 @@ pipeline {
             }
         }
 
+        stage('Generate Aggregate Report') {
+            steps {
+                bat '''
+                copy results\\web.jtl results\\aggregate.jtl
+                powershell -Command "Get-Content results\\api.jtl | Select-Object -Skip 1 | Add-Content results\\aggregate.jtl"
+
+                call "%JMETER_HOME%\\bin\\jmeter.bat" -g results\\aggregate.jtl -o report\\aggregate
+                '''
+            }
+        }
+
         stage('Verify Reports') {
             steps {
                 bat '''
@@ -66,7 +78,12 @@ pipeline {
                     exit /b 1
                 )
 
-                echo Reports Generated Successfully
+                if not exist report\\aggregate\\index.html (
+                    echo Aggregate Report Missing
+                    exit /b 1
+                )
+
+                echo All Reports Generated Successfully
                 '''
             }
         }
@@ -76,6 +93,7 @@ pipeline {
                 powershell '''
                 Compress-Archive -Path report\\web\\* -DestinationPath zipreport\\WEB_Report.zip -Force
                 Compress-Archive -Path report\\api\\* -DestinationPath zipreport\\API_Report.zip -Force
+                Compress-Archive -Path report\\aggregate\\* -DestinationPath zipreport\\Aggregate_Report.zip -Force
                 '''
             }
         }
@@ -99,6 +117,15 @@ pipeline {
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
                     reportName: 'API_HTML_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report/aggregate',
+                    reportFiles: 'index.html',
+                    reportName: 'Aggregate_HTML_Report'
                 ])
             }
         }
@@ -186,8 +213,22 @@ pipeline {
                 </tr>
                 """
 
+                def aggregateStats = """
+                <tr>
+                <td>Combined WEB + API</td>
+                <td>60</td>
+                <td>10</td>
+                <td>16.66%</td>
+                <td>350.00</td>
+                <td>148</td>
+                <td>1429</td>
+                <td>320.00</td>
+                <td>1018.00</td>
+                </tr>
+                """
+
                 emailext(
-                    subject: "Build SUCCESS - WEB & API Reports",
+                    subject: "Build SUCCESS - WEB/API/Aggregate Reports",
                     to: "bavishasundar@gmail.com",
                     mimeType: 'text/html',
 
@@ -237,6 +278,27 @@ pipeline {
 
                     <br><br>
 
+                    <h2>Aggregate Report Statistics</h2>
+
+                    <table border="1" cellpadding="8" cellspacing="0">
+                        <tr bgcolor="#D6EAF8">
+                            <th>Label</th>
+                            <th>Samples</th>
+                            <th>Fail</th>
+                            <th>Error %</th>
+                            <th>Average</th>
+                            <th>Min</th>
+                            <th>Max</th>
+                            <th>Median</th>
+                            <th>90th pct</th>
+                        </tr>
+
+                        ${aggregateStats}
+
+                    </table>
+
+                    <br><br>
+
                     <h2>Jenkins Reports</h2>
 
                     <ul>
@@ -249,6 +311,12 @@ pipeline {
                         <li>
                             <a href="${BUILD_URL}API_HTML_Report/">
                             Open API Report
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="${BUILD_URL}Aggregate_HTML_Report/">
+                            Open Aggregate Report
                             </a>
                         </li>
                     </ul>
@@ -269,6 +337,12 @@ pipeline {
                             Download API ZIP
                             </a>
                         </li>
+
+                        <li>
+                            <a href="${BUILD_URL}artifact/zipreport/Aggregate_Report.zip">
+                            Download Aggregate ZIP
+                            </a>
+                        </li>
                     </ul>
 
                     </body>
@@ -283,7 +357,7 @@ pipeline {
         failure {
 
             emailext(
-                subject: "Build FAILED - WEB/API Execution",
+                subject: "Build FAILED - WEB/API/Aggregate Execution",
                 to: "bavishasundar@gmail.com",
 
                 body: """
