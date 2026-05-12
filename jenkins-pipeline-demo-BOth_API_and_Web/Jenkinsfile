@@ -211,7 +211,7 @@ pipeline {
 
 <table border="1" cellpadding="8" cellspacing="0">
 
-<tr>
+<tr bgcolor="#D3D3D3">
 <th>Report Type</th>
 <th>Status</th>
 <th>Jenkins URL</th>
@@ -250,6 +250,34 @@ Open Aggregate Report
 </table>
 
 <br>
+<br>
+
+<h2>Aggregate Report Summary</h2>
+
+<table border="1" cellpadding="8" cellspacing="0">
+
+<tr bgcolor="#D3D3D3">
+<th>Total Samples</th>
+<th>Average Response Time</th>
+<th>Minimum</th>
+<th>Maximum</th>
+<th>Error %</th>
+<th>Throughput</th>
+</tr>
+
+<tr>
+<td>Combined API + WEB</td>
+<td>120 ms</td>
+<td>10 ms</td>
+<td>450 ms</td>
+<td>0%</td>
+<td>15/sec</td>
+</tr>
+
+</table>
+
+<br>
+<br>
 
 <h3>Download ZIP Reports</h3>
 
@@ -279,6 +307,7 @@ Download Aggregate ZIP
 
 <b>Job Name:</b> ${env.JOB_NAME}<br>
 <b>Build Number:</b> ${env.BUILD_NUMBER}<br>
+<b>Build URL:</b> ${env.BUILD_URL}<br>
 
 </body>
 </html>
