@@ -242,13 +242,34 @@ pipeline {
 
                     <br><br>
 
-                    <h3>Attached Reports</h3>
+                    <h2>Download Reports</h2>
 
                     <ul>
-                        <li>WEB_Report.zip</li>
-                        <li>API_Report.zip</li>
-                        <li>WEB_Aggregate_Report.zip</li>
-                        <li>API_Aggregate_Report.zip</li>
+
+                        <li>
+                            <a href="${BUILD_URL}artifact/zipreport/WEB_Report.zip">
+                            Download WEB Report
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="${BUILD_URL}artifact/zipreport/API_Report.zip">
+                            Download API Report
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="${BUILD_URL}artifact/zipreport/WEB_Aggregate_Report.zip">
+                            Download WEB Aggregate Report
+                            </a>
+                        </li>
+
+                        <li>
+                            <a href="${BUILD_URL}artifact/zipreport/API_Aggregate_Report.zip">
+                            Download API Aggregate Report
+                            </a>
+                        </li>
+
                     </ul>
 
                     </body>
