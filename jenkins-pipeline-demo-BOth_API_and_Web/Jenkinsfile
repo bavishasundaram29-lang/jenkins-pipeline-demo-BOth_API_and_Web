@@ -9,39 +9,44 @@ pipeline {
             }
         }
 
-        stage('Create Web Report') {
-            steps {
-                bat """
-                mkdir report\\web
-                (
-                echo ^<html^>
-                echo ^<body^>
-                echo ^<h2^>Web Report^</h2^>
-                echo ^<p style='color:green'^>SUCCESS^</p^>
-                echo ^</body^>
-                echo ^</html^>
-                ) > report\\web\\web-report.html
-                """
+        stage('Create Reports') {
+            parallel {
+
+                stage('Web Report') {
+                    steps {
+                        bat """
+                        mkdir report\\web
+                        (
+                        echo ^<html^>
+                        echo ^<body^>
+                        echo ^<h2^>Web Report^</h2^>
+                        echo ^<p style='color:green'^>SUCCESS^</p^>
+                        echo ^</body^>
+                        echo ^</html^>
+                        ) > report\\web\\web-report.html
+                        """
+                    }
+                }
+
+                stage('API Report') {
+                    steps {
+                        bat """
+                        mkdir report\\api
+                        (
+                        echo ^<html^>
+                        echo ^<body^>
+                        echo ^<h2^>API Report^</h2^>
+                        echo ^<p style='color:green'^>SUCCESS^</p^>
+                        echo ^</body^>
+                        echo ^</html^>
+                        ) > report\\api\\api-report.html
+                        """
+                    }
+                }
             }
         }
 
-        stage('Create API Report') {
-            steps {
-                bat """
-                mkdir report\\api
-                (
-                echo ^<html^>
-                echo ^<body^>
-                echo ^<h2^>API Report^</h2^>
-                echo ^<p style='color:green'^>SUCCESS^</p^>
-                echo ^</body^>
-                echo ^</html^>
-                ) > report\\api\\api-report.html
-                """
-            }
-        }
-
-        stage('Create Dashboard') {
+        stage('Dashboard') {
             steps {
                 bat """
                 mkdir report\\dashboard
@@ -57,7 +62,7 @@ pipeline {
             }
         }
 
-        stage('Create Aggregate Report') {
+        stage('Aggregate Report') {
             steps {
                 bat """
                 mkdir report\\aggregate
@@ -84,25 +89,37 @@ pipeline {
                 publishHTML([
                     reportDir: 'report/web',
                     reportFiles: 'web-report.html',
-                    reportName: 'Web Report'
+                    reportName: 'Web Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
                 ])
 
                 publishHTML([
                     reportDir: 'report/api',
                     reportFiles: 'api-report.html',
-                    reportName: 'API Report'
+                    reportName: 'API Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
                 ])
 
                 publishHTML([
                     reportDir: 'report/dashboard',
                     reportFiles: 'index.html',
-                    reportName: 'Dashboard'
+                    reportName: 'Dashboard',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
                 ])
 
                 publishHTML([
                     reportDir: 'report/aggregate',
                     reportFiles: 'aggregate.html',
-                    reportName: 'Aggregate Report'
+                    reportName: 'Aggregate Report',
+                    keepAll: true,
+                    alwaysLinkToLastBuild: true,
+                    allowMissing: false
                 ])
             }
         }
@@ -144,11 +161,11 @@ pipeline {
 
                 <h3>📦 Download Reports</h3>
                 <ul>
-                    <li><a href="${BUILD_URL}HTML_Report/Web_Report/">Open Web Report (Jenkins UI)</a></li>
-                    <li><a href="${BUILD_URL}HTML_Report/API_Report/">Open API Report (Jenkins UI)</a></li>
-                    <li><a href="${BUILD_URL}HTML_Report/Dashboard/">Open Dashboard (Jenkins UI)</a></li>
-                    <li><a href="${BUILD_URL}HTML_Report/Aggregate_Report/">Open Aggregate Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/">Download All Workspace Files</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/Web_Report/">Web Report (Jenkins UI)</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/API_Report/">API Report (Jenkins UI)</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/Dashboard/">Dashboard (Jenkins UI)</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/Aggregate_Report/">Aggregate Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/">Download Workspace Files</a></li>
                 </ul>
 
                 <p><b>Build:</b> ${JOB_NAME} #${BUILD_NUMBER}</p>
