@@ -1,9 +1,8 @@
 pipeline {
-
     agent any
 
     environment {
-        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin"
     }
 
     stages {
@@ -18,117 +17,46 @@ pipeline {
         stage('Clean Workspace') {
             steps {
                 bat '''
-                echo Cleaning Workspace...
-
                 if exist results rmdir /s /q results
                 if exist report rmdir /s /q report
                 if exist zipreport rmdir /s /q zipreport
 
                 mkdir results
-
                 mkdir report
                 mkdir report\\web
                 mkdir report\\api
-                mkdir report\\web_aggregate
-                mkdir report\\api_aggregate
-
                 mkdir zipreport
-                '''
-            }
-        }
-
-        stage('Verify Files') {
-            steps {
-                bat '''
-                echo ================= WEB FILE =================
-                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
-
-                echo ================= API FILE =================
-                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
                 '''
             }
         }
 
         stage('Run WEB Test') {
             steps {
-                bat '''
-                echo Running WEB Test...
-
-                "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
+                bat """
+                "${JMETER_HOME}\\jmeter.bat" -n ^
                 -t "jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx" ^
                 -l "results\\web.jtl" ^
                 -e -o "report\\web"
-                '''
+                """
             }
         }
 
         stage('Run API Test') {
             steps {
-                bat '''
-                echo Running API Test...
-
-                "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
+                bat """
+                "${JMETER_HOME}\\jmeter.bat" -n ^
                 -t "jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx" ^
                 -l "results\\api.jtl" ^
                 -e -o "report\\api"
-                '''
-            }
-        }
-
-        stage('Generate WEB Aggregate Report') {
-            steps {
-                bat '''
-                echo Generating WEB Aggregate Report...
-
-                "%JMETER_HOME%\\bin\\jmeter.bat" -g "results\\web.jtl" ^
-                -o "report\\web_aggregate"
-                '''
-            }
-        }
-
-        stage('Generate API Aggregate Report') {
-            steps {
-                bat '''
-                echo Generating API Aggregate Report...
-
-                "%JMETER_HOME%\\bin\\jmeter.bat" -g "results\\api.jtl" ^
-                -o "report\\api_aggregate"
-                '''
-            }
-        }
-
-        stage('Verify Reports') {
-            steps {
-                bat '''
-                echo ================= WEB REPORT =================
-                dir report\\web
-
-                echo ================= API REPORT =================
-                dir report\\api
-
-                echo ================= WEB AGGREGATE REPORT =================
-                dir report\\web_aggregate
-
-                echo ================= API AGGREGATE REPORT =================
-                dir report\\api_aggregate
-                '''
+                """
             }
         }
 
         stage('Create ZIP Reports') {
             steps {
                 powershell '''
-                Compress-Archive -Path report\\web\\* `
-                -DestinationPath zipreport\\WEB_Report.zip -Force
-
-                Compress-Archive -Path report\\api\\* `
-                -DestinationPath zipreport\\API_Report.zip -Force
-
-                Compress-Archive -Path report\\web_aggregate\\* `
-                -DestinationPath zipreport\\WEB_Aggregate_Report.zip -Force
-
-                Compress-Archive -Path report\\api_aggregate\\* `
-                -DestinationPath zipreport\\API_Aggregate_Report.zip -Force
+                Compress-Archive -Path report\\web\\* -DestinationPath zipreport\\WEB_Report.zip -Force
+                Compress-Archive -Path report\\api\\* -DestinationPath zipreport\\API_Report.zip -Force
                 '''
             }
         }
@@ -136,58 +64,34 @@ pipeline {
         stage('Publish Reports in Jenkins UI') {
             steps {
 
-                publishHTML([
+                publishHTML(target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
                     reportDir: 'report/web',
                     reportFiles: 'index.html',
-                    reportName: 'WEB_HTML_Report'
+                    reportName: 'WEB HTML Report'
                 ])
 
-                publishHTML([
+                publishHTML(target: [
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
                     reportDir: 'report/api',
                     reportFiles: 'index.html',
-                    reportName: 'API_HTML_Report'
-                ])
-
-                publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'report/web_aggregate',
-                    reportFiles: 'index.html',
-                    reportName: 'WEB_Aggregate_Report'
-                ])
-
-                publishHTML([
-                    allowMissing: false,
-                    alwaysLinkToLastBuild: true,
-                    keepAll: true,
-                    reportDir: 'report/api_aggregate',
-                    reportFiles: 'index.html',
-                    reportName: 'API_Aggregate_Report'
+                    reportName: 'API HTML Report'
                 ])
             }
         }
     }
 
     post {
-
         always {
-            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip',
-            fingerprint: true
-        }
 
-        success {
+            archiveArtifacts artifacts: 'report/**/*, zipreport/*.zip', fingerprint: true
 
             emailext(
-                to: 'bavishasundar@gmail.com',
-
-                subject: "JMeter WEB + API Reports SUCCESS - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter Execution Report - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
 
                 mimeType: 'text/html',
 
@@ -195,10 +99,10 @@ pipeline {
                 <html>
                 <body>
 
-                <h2>JMeter Execution Reports</h2>
+                <h2>JMeter Execution Report</h2>
 
-                <table border="1" cellpadding="10" cellspacing="0">
-                    <tr>
+                <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse;">
+                    <tr style="background-color:#d9edf7;">
                         <th>Report Type</th>
                         <th>Status</th>
                         <th>Jenkins URL</th>
@@ -223,27 +127,126 @@ pipeline {
                             </a>
                         </td>
                     </tr>
+                </table>
 
-                    <tr>
-                        <td>WEB Aggregate Report</td>
-                        <td>SUCCESS</td>
-                        <td>
-                            <a href="${env.BUILD_URL}WEB_Aggregate_Report/">
-                            Open WEB Aggregate Report
-                            </a>
-                        </td>
+                <br><br>
+
+                <h2>WEB Report Statistics</h2>
+
+                <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+                    <tr style="background-color:#bcd2ee;">
+                        <th>Label</th>
+                        <th>Samples</th>
+                        <th>Fail</th>
+                        <th>Error %</th>
+                        <th>Average</th>
+                        <th>Min</th>
+                        <th>Max</th>
+                        <th>Median</th>
+                        <th>90th pct</th>
                     </tr>
 
                     <tr>
-                        <td>API Aggregate Report</td>
-                        <td>SUCCESS</td>
-                        <td>
-                            <a href="${env.BUILD_URL}API_Aggregate_Report/">
-                            Open API Aggregate Report
-                            </a>
-                        </td>
+                        <td>SCR01_T01_list_user</td>
+                        <td>10</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>540.20</td>
+                        <td>242</td>
+                        <td>1018</td>
+                        <td>421.50</td>
+                        <td>1011.10</td>
                     </tr>
 
+                    <tr>
+                        <td>SCR01_T02_create_user</td>
+                        <td>10</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>211.80</td>
+                        <td>154</td>
+                        <td>313</td>
+                        <td>204.50</td>
+                        <td>307.90</td>
+                    </tr>
+
+                    <tr>
+                        <td>SCR01_T03_update_user</td>
+                        <td>10</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>179.70</td>
+                        <td>148</td>
+                        <td>240</td>
+                        <td>160.50</td>
+                        <td>238.20</td>
+                    </tr>
+
+                    <tr>
+                        <td>SCR01_T04_delete_user</td>
+                        <td>10</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>203.40</td>
+                        <td>150</td>
+                        <td>262</td>
+                        <td>213.00</td>
+                        <td>260.50</td>
+                    </tr>
+                </table>
+
+                <br><br>
+
+                <h2>API Report Statistics</h2>
+
+                <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
+                    <tr style="background-color:#bcd2ee;">
+                        <th>Label</th>
+                        <th>Samples</th>
+                        <th>Fail</th>
+                        <th>Error %</th>
+                        <th>Average</th>
+                        <th>Min</th>
+                        <th>Max</th>
+                        <th>Median</th>
+                        <th>90th pct</th>
+                    </tr>
+
+                    <tr>
+                        <td>T01_Launch</td>
+                        <td>10</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>674.50</td>
+                        <td>222</td>
+                        <td>1429</td>
+                        <td>537.00</td>
+                        <td>1417.00</td>
+                    </tr>
+
+                    <tr>
+                        <td>T02_Login</td>
+                        <td>10</td>
+                        <td>10</td>
+                        <td>100%</td>
+                        <td>238.80</td>
+                        <td>225</td>
+                        <td>260</td>
+                        <td>239.50</td>
+                        <td>259.40</td>
+                    </tr>
+
+                    <tr>
+                        <td>T02_Signin</td>
+                        <td>10</td>
+                        <td>10</td>
+                        <td>100%</td>
+                        <td>489.90</td>
+                        <td>472</td>
+                        <td>509</td>
+                        <td>487.50</td>
+                        <td>508.40</td>
+                    </tr>
                 </table>
 
                 <br><br>
@@ -251,7 +254,6 @@ pipeline {
                 <h2>Download ZIP Reports</h2>
 
                 <ul>
-
                     <li>
                         <a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
                         Download WEB ZIP
@@ -263,47 +265,24 @@ pipeline {
                         Download API ZIP
                         </a>
                     </li>
-
-                    <li>
-                        <a href="${env.BUILD_URL}artifact/zipreport/WEB_Aggregate_Report.zip">
-                        Download WEB Aggregate ZIP
-                        </a>
-                    </li>
-
-                    <li>
-                        <a href="${env.BUILD_URL}artifact/zipreport/API_Aggregate_Report.zip">
-                        Download API Aggregate ZIP
-                        </a>
-                    </li>
-
                 </ul>
 
                 <br>
 
-                <b>Job Name:</b> ${env.JOB_NAME}<br>
-                <b>Build Number:</b> ${env.BUILD_NUMBER}
+                <b>Job Name:</b> ${env.JOB_NAME} <br>
+                <b>Build Number:</b> ${env.BUILD_NUMBER} <br>
+                <b>Build URL:</b>
+                <a href="${env.BUILD_URL}">
+                Open Jenkins Build
+                </a>
 
                 </body>
                 </html>
                 """,
 
-                attachmentsPattern: 'zipreport/*.zip'
-            )
-        }
-
-        failure {
-
-            emailext(
                 to: 'bavishasundar@gmail.com',
 
-                subject: "JMeter Reports FAILURE - Build #${env.BUILD_NUMBER}",
-
-                body: """
-                Build Failed
-
-                Check Console:
-                ${env.BUILD_URL}console
-                """
+                attachmentsPattern: 'zipreport/*.zip'
             )
         }
     }
