@@ -10,7 +10,6 @@ pipeline {
 
         stage('Checkout Code') {
             steps {
-
                 git branch: 'main',
                 url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
             }
@@ -18,7 +17,6 @@ pipeline {
 
         stage('Clean Workspace') {
             steps {
-
                 bat '''
                 echo Cleaning Workspace...
 
@@ -27,74 +25,69 @@ pipeline {
                 if exist zipreport rmdir /s /q zipreport
 
                 mkdir results
+
                 mkdir report
                 mkdir report\\web
                 mkdir report\\api
-                mkdir report\\aggregate
+
+                mkdir report\\web_aggregate
+                mkdir report\\api_aggregate
+
                 mkdir zipreport
-                '''
-            }
-        }
-
-        stage('Verify Files') {
-            steps {
-
-                bat '''
-                echo ================= WEB FILE =================
-                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
-
-                echo ================= API FILE =================
-                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
                 '''
             }
         }
 
         stage('Run WEB Test') {
             steps {
-
                 bat '''
                 echo Running WEB Test...
 
-                "%JMETER_HOME%\\bin\\jmeter.bat" -n -t "jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx" -l "results\\web.jtl" -e -o "report\\web"
-
-                echo WEB Test Completed
+                "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
+                -t "jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx" ^
+                -l "results\\web.jtl" ^
+                -e -o "report\\web"
                 '''
             }
         }
 
         stage('Run API Test') {
             steps {
-
                 bat '''
                 echo Running API Test...
 
-                "%JMETER_HOME%\\bin\\jmeter.bat" -n -t "jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx" -l "results\\api.jtl" -e -o "report\\api"
-
-                echo API Test Completed
+                "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
+                -t "jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx" ^
+                -l "results\\api.jtl" ^
+                -e -o "report\\api"
                 '''
             }
         }
 
-        stage('Generate Aggregate Report') {
+        stage('Generate WEB Aggregate Report') {
             steps {
-
                 bat '''
-                echo Creating Aggregate Report...
+                echo Generating WEB Aggregate Report...
 
-                copy results\\web.jtl results\\final.jtl
+                "%JMETER_HOME%\\bin\\jmeter.bat" -g "results\\web.jtl" ^
+                -o "report\\web_aggregate"
+                '''
+            }
+        }
 
-                powershell -Command "Get-Content results\\api.jtl | Select-Object -Skip 1 | Add-Content results\\final.jtl"
+        stage('Generate API Aggregate Report') {
+            steps {
+                bat '''
+                echo Generating API Aggregate Report...
 
-                "%JMETER_HOME%\\bin\\jmeter.bat" -g "results\\final.jtl" -o "report\\aggregate"
-
-                echo Aggregate Report Generated
+                "%JMETER_HOME%\\bin\\jmeter.bat" -g "results\\api.jtl" ^
+                -o "report\\api_aggregate"
                 '''
             }
         }
 
         stage('Verify Reports') {
             steps {
-
                 bat '''
                 echo ================= WEB REPORT =================
                 dir report\\web
@@ -102,52 +95,29 @@ pipeline {
                 echo ================= API REPORT =================
                 dir report\\api
 
-                echo ================= AGGREGATE REPORT =================
-                dir report\\aggregate
+                echo ================= WEB AGGREGATE REPORT =================
+                dir report\\web_aggregate
 
-                if exist report\\web\\index.html (
-                    echo WEB Report Generated
-                ) else (
-                    echo WEB Report Failed
-                    exit /b 1
-                )
-
-                if exist report\\api\\index.html (
-                    echo API Report Generated
-                ) else (
-                    echo API Report Failed
-                    exit /b 1
-                )
-
-                if exist report\\aggregate\\index.html (
-                    echo Aggregate Report Generated
-                ) else (
-                    echo Aggregate Report Failed
-                    exit /b 1
-                )
+                echo ================= API AGGREGATE REPORT =================
+                dir report\\api_aggregate
                 '''
             }
         }
 
         stage('Create ZIP Reports') {
             steps {
-
                 powershell '''
-                Compress-Archive -Path report\\web\\* -DestinationPath zipreport\\WEB_Report.zip -Force
+                Compress-Archive -Path report\\web\\* `
+                -DestinationPath zipreport\\WEB_Report.zip -Force
 
-                Compress-Archive -Path report\\api\\* -DestinationPath zipreport\\API_Report.zip -Force
+                Compress-Archive -Path report\\api\\* `
+                -DestinationPath zipreport\\API_Report.zip -Force
 
-                Compress-Archive -Path report\\aggregate\\* -DestinationPath zipreport\\Aggregate_Report.zip -Force
-                '''
-            }
-        }
+                Compress-Archive -Path report\\web_aggregate\\* `
+                -DestinationPath zipreport\\WEB_Aggregate_Report.zip -Force
 
-        stage('Verify ZIP Reports') {
-            steps {
-
-                bat '''
-                echo ================= ZIP REPORTS =================
-                dir zipreport
+                Compress-Archive -Path report\\api_aggregate\\* `
+                -DestinationPath zipreport\\API_Aggregate_Report.zip -Force
                 '''
             }
         }
@@ -177,9 +147,18 @@ pipeline {
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
-                    reportDir: 'report/aggregate',
+                    reportDir: 'report/web_aggregate',
                     reportFiles: 'index.html',
-                    reportName: 'Aggregate_HTML_Report'
+                    reportName: 'WEB_Aggregate_Report'
+                ])
+
+                publishHTML([
+                    allowMissing: false,
+                    alwaysLinkToLastBuild: true,
+                    keepAll: true,
+                    reportDir: 'report/api_aggregate',
+                    reportFiles: 'index.html',
+                    reportName: 'API_Aggregate_Report'
                 ])
             }
         }
@@ -188,130 +167,114 @@ pipeline {
     post {
 
         always {
-
-            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip', fingerprint: true
+            archiveArtifacts artifacts: 'results/*.jtl,report/**,zipreport/*.zip',
+            fingerprint: true
         }
 
         success {
 
             emailext(
-
                 to: 'bavishasundar@gmail.com',
 
-                subject: "JMeter WEB + API + Aggregate Reports SUCCESS - Build #${env.BUILD_NUMBER}",
+                subject: "JMeter WEB + API Reports SUCCESS - Build #${env.BUILD_NUMBER}",
 
                 mimeType: 'text/html',
 
                 body: """
-<html>
+                <html>
+                <body>
 
-<body>
+                <h2>JMeter Execution Reports</h2>
 
-<h2>JMeter Execution Summary</h2>
+                <table border="1" cellpadding="10" cellspacing="0">
+                    <tr>
+                        <th>Report Type</th>
+                        <th>Status</th>
+                        <th>Jenkins URL</th>
+                    </tr>
 
-<table border="1" cellpadding="8" cellspacing="0">
+                    <tr>
+                        <td>WEB Report</td>
+                        <td>SUCCESS</td>
+                        <td>
+                            <a href="${env.BUILD_URL}WEB_HTML_Report/">
+                            Open WEB Report
+                            </a>
+                        </td>
+                    </tr>
 
-<tr bgcolor="#D3D3D3">
-<th>Report Type</th>
-<th>Status</th>
-<th>Jenkins URL</th>
-</tr>
+                    <tr>
+                        <td>API Report</td>
+                        <td>SUCCESS</td>
+                        <td>
+                            <a href="${env.BUILD_URL}API_HTML_Report/">
+                            Open API Report
+                            </a>
+                        </td>
+                    </tr>
 
-<tr>
-<td>WEB Report</td>
-<td>SUCCESS</td>
-<td>
-<a href="${env.BUILD_URL}WEB_HTML_Report/">
-Open WEB Report
-</a>
-</td>
-</tr>
+                    <tr>
+                        <td>WEB Aggregate Report</td>
+                        <td>SUCCESS</td>
+                        <td>
+                            <a href="${env.BUILD_URL}WEB_Aggregate_Report/">
+                            Open WEB Aggregate Report
+                            </a>
+                        </td>
+                    </tr>
 
-<tr>
-<td>API Report</td>
-<td>SUCCESS</td>
-<td>
-<a href="${env.BUILD_URL}API_HTML_Report/">
-Open API Report
-</a>
-</td>
-</tr>
+                    <tr>
+                        <td>API Aggregate Report</td>
+                        <td>SUCCESS</td>
+                        <td>
+                            <a href="${env.BUILD_URL}API_Aggregate_Report/">
+                            Open API Aggregate Report
+                            </a>
+                        </td>
+                    </tr>
 
-<tr>
-<td>Aggregate Report</td>
-<td>SUCCESS</td>
-<td>
-<a href="${env.BUILD_URL}Aggregate_HTML_Report/">
-Open Aggregate Report
-</a>
-</td>
-</tr>
+                </table>
 
-</table>
+                <br><br>
 
-<br>
-<br>
+                <h2>Download ZIP Reports</h2>
 
-<h2>Aggregate Report Summary</h2>
+                <ul>
 
-<table border="1" cellpadding="8" cellspacing="0">
+                    <li>
+                        <a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
+                        Download WEB ZIP
+                        </a>
+                    </li>
 
-<tr bgcolor="#D3D3D3">
-<th>Total Samples</th>
-<th>Average Response Time</th>
-<th>Minimum</th>
-<th>Maximum</th>
-<th>Error %</th>
-<th>Throughput</th>
-</tr>
+                    <li>
+                        <a href="${env.BUILD_URL}artifact/zipreport/API_Report.zip">
+                        Download API ZIP
+                        </a>
+                    </li>
 
-<tr>
-<td>Combined API + WEB</td>
-<td>120 ms</td>
-<td>10 ms</td>
-<td>450 ms</td>
-<td>0%</td>
-<td>15/sec</td>
-</tr>
+                    <li>
+                        <a href="${env.BUILD_URL}artifact/zipreport/WEB_Aggregate_Report.zip">
+                        Download WEB Aggregate ZIP
+                        </a>
+                    </li>
 
-</table>
+                    <li>
+                        <a href="${env.BUILD_URL}artifact/zipreport/API_Aggregate_Report.zip">
+                        Download API Aggregate ZIP
+                        </a>
+                    </li>
 
-<br>
-<br>
+                </ul>
 
-<h3>Download ZIP Reports</h3>
+                <br>
 
-<ul>
+                <b>Job Name:</b> ${env.JOB_NAME}<br>
+                <b>Build Number:</b> ${env.BUILD_NUMBER}
 
-<li>
-<a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
-Download WEB ZIP
-</a>
-</li>
-
-<li>
-<a href="${env.BUILD_URL}artifact/zipreport/API_Report.zip">
-Download API ZIP
-</a>
-</li>
-
-<li>
-<a href="${env.BUILD_URL}artifact/zipreport/Aggregate_Report.zip">
-Download Aggregate ZIP
-</a>
-</li>
-
-</ul>
-
-<br>
-
-<b>Job Name:</b> ${env.JOB_NAME}<br>
-<b>Build Number:</b> ${env.BUILD_NUMBER}<br>
-<b>Build URL:</b> ${env.BUILD_URL}<br>
-
-</body>
-</html>
-""",
+                </body>
+                </html>
+                """,
 
                 attachmentsPattern: 'zipreport/*.zip'
             )
@@ -320,17 +283,16 @@ Download Aggregate ZIP
         failure {
 
             emailext(
-
                 to: 'bavishasundar@gmail.com',
 
                 subject: "JMeter Reports FAILURE - Build #${env.BUILD_NUMBER}",
 
                 body: """
-Build FAILED
+                Build Failed
 
-Check Console Output:
-${env.BUILD_URL}console
-"""
+                Check Console:
+                ${env.BUILD_URL}console
+                """
             )
         }
     }
