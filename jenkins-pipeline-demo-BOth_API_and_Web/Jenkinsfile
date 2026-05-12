@@ -29,11 +29,22 @@ pipeline {
                 mkdir report
                 mkdir report\\web
                 mkdir report\\api
-
                 mkdir report\\web_aggregate
                 mkdir report\\api_aggregate
 
                 mkdir zipreport
+                '''
+            }
+        }
+
+        stage('Verify Files') {
+            steps {
+                bat '''
+                echo ================= WEB FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\web
+
+                echo ================= API FILE =================
+                dir jenkins-pipeline-demo-BOth_API_and_Web\\api
                 '''
             }
         }
