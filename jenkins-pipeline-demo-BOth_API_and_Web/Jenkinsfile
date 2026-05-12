@@ -9,7 +9,7 @@ pipeline {
             }
         }
 
-        stage('Create Reports in Workspace') {
+        stage('Generate Reports') {
             parallel {
 
                 stage('Web Report') {
@@ -55,9 +55,9 @@ pipeline {
                 echo ^<body^>
                 echo ^<h2^>Aggregate Report^</h2^>
                 echo ^<table border='1' cellpadding='8'^>
-                echo ^<tr^>^<th^>Module^</th^>^<th^>Details^</th^>^</tr^>
-                echo ^<tr^>^<td^>Web Report^</td^>^<td^>Web report generated successfully^</td^>^</tr^>
-                echo ^<tr^>^<td^>API Report^</td^>^<td^>API report generated successfully^</td^>^</tr^>
+                echo ^<tr^>^<th^>Module^</th^>^<th^>Status^</th^>^</tr^>
+                echo ^<tr^>^<td^>Web Report^</td^>^<td^>Completed^</td^>^</tr^>
+                echo ^<tr^>^<td^>API Report^</td^>^<td^>Completed^</td^>^</tr^>
                 echo ^</table^>
                 echo ^</body^>
                 echo ^</html^>
@@ -97,15 +97,6 @@ pipeline {
                 ])
             }
         }
-
-        stage('Prepare Email Data') {
-            steps {
-                script {
-                    env.WEB_REPORT = readFile('report/web/web-report.html')
-                    env.API_REPORT = readFile('report/api/api-report.html')
-                }
-            }
-        }
     }
 
     post {
@@ -121,39 +112,36 @@ pipeline {
 
                 <h2 style="color:green;">🎉 Build Successful</h2>
 
-                <h3>📊 Web Report (Workspace + Email)</h3>
-                <pre>${WEB_REPORT}</pre>
+                <h3>📊 Reports</h3>
+                <ul>
+                    <li>✔ Full Web Report → <a href="${BUILD_URL}HTML_Report/Web_Report/">Open Report</a></li>
+                    <li>✔ Full API Report → <a href="${BUILD_URL}HTML_Report/API_Report/">Open Report</a></li>
+                </ul>
 
-                <h3>📊 API Report (Workspace + Email)</h3>
-                <pre>${API_REPORT}</pre>
-
-                <h3>📊 Aggregate Report</h3>
+                <h3>📊 Aggregate Table</h3>
                 <table border="1" cellpadding="8">
                     <tr>
                         <th>Module</th>
-                        <th>Details</th>
+                        <th>Status</th>
                     </tr>
                     <tr>
                         <td>Web Report</td>
-                        <td>Web report generated successfully</td>
+                        <td>Completed</td>
                     </tr>
                     <tr>
                         <td>API Report</td>
-                        <td>API report generated successfully</td>
+                        <td>Completed</td>
                     </tr>
                 </table>
 
-                <hr>
-
-                <h3>📦 Download from Workspace</h3>
+                <h3>📦 Download Links</h3>
                 <ul>
-                    <li><a href="${BUILD_URL}artifact/report/web/web-report.html">Web Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/report/api/api-report.html">API Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/report/aggregate/aggregate.html">Aggregate Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/">Download Entire Workspace</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/web/web-report.html">Download Web Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/api/api-report.html">Download API Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/report/aggregate/aggregate.html">Download Aggregate Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/">Download All Workspace Files</a></li>
                 </ul>
 
-                <p><b>Workspace Path:</b> report/</p>
                 <p><b>Build:</b> ${JOB_NAME} #${BUILD_NUMBER}</p>
 
                 </body>
