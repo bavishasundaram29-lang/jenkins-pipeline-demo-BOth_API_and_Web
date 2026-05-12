@@ -21,44 +21,41 @@ pipeline {
                 if exist report rmdir /s /q report
 
                 mkdir results
+
                 mkdir report
-                mkdir report\\final
+                mkdir report\\api
+                mkdir report\\web
                 '''
             }
         }
 
-        stage('Run API + Web Parallel') {
+        stage('Run API and WEB Tests Parallel') {
+
             parallel {
 
                 stage('API Test') {
                     steps {
+
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx ^
-                        -l results\\api.jtl
+                        -l results\\api_results.jtl ^
+                        -e -o report\\api
                         """
                     }
                 }
 
-                stage('Web Test') {
+                stage('WEB Test') {
                     steps {
+
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx ^
-                        -l results\\web.jtl
+                        -l results\\web_results.jtl ^
+                        -e -o report\\web
                         """
                     }
                 }
-            }
-        }
-
-        stage('Generate Final Report') {
-            steps {
-                bat '''
-                if exist report\\final rmdir /s /q report\\final
-
-                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
-                '''
             }
         }
     }
@@ -66,48 +63,82 @@ pipeline {
     post {
 
         always {
+
+            // Archive all reports
             archiveArtifacts artifacts: 'results/**, report/**', fingerprint: true
 
+            // Publish API Report
             publishHTML([
                 allowMissing: false,
                 alwaysLinkToLastBuild: true,
                 keepAll: true,
-                reportDir: 'report/final',
+                reportDir: 'report/api',
                 reportFiles: 'index.html',
-                reportName: 'JMeter Final Report'
+                reportName: 'API Report'
+            ])
+
+            // Publish WEB Report
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'report/web',
+                reportFiles: 'index.html',
+                reportName: 'WEB Report'
             ])
         }
 
         success {
-            emailext (
-                to: "bavishasundar@gmail.com",
-                subject: "✔ Jenkins SUCCESS - API + WEB",
+
+            emailext(
+                to: 'bavishasundar@gmail.com',
+
+                subject: "✔ Jenkins Build SUCCESS - API & WEB Reports",
+
                 body: """
 Build SUCCESS
 
-✔ API executed
-✔ Web executed
+✔ API Test Executed
+✔ WEB Test Executed
 
-Report attached and available in Jenkins UI
+Separate reports generated successfully.
 
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
+Available Reports:
+1. API Report
+2. WEB Report
+
+Reports available in:
+- Jenkins UI
+- Jenkins Workspace
+- Email Attachments
+
+Job Name  : ${env.JOB_NAME}
+Build No  : ${env.BUILD_NUMBER}
+Build URL : ${env.BUILD_URL}
 """,
-                attachmentsPattern: "report/final/**"
+
+                attachmentsPattern: '''
+report/api/**,
+report/web/**
+'''
             )
         }
 
         failure {
-            emailext (
-                to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins FAILED - API + WEB",
+
+            emailext(
+                to: 'bavishasundar@gmail.com',
+
+                subject: "❌ Jenkins Build FAILED",
+
                 body: """
 Build FAILED
 
-Check Jenkins console logs.
+Check Jenkins Console Output.
 
-Job: ${env.JOB_NAME}
-Build: ${env.BUILD_NUMBER}
+Job Name  : ${env.JOB_NAME}
+Build No  : ${env.BUILD_NUMBER}
+Build URL : ${env.BUILD_URL}
 """
             )
         }
