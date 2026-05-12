@@ -79,9 +79,11 @@ pipeline {
             steps {
 
                 bat '''
-                echo Creating Combined Aggregate CSV...
+                echo Creating Aggregate Report...
 
-                copy /b results\\web.jtl + results\\api.jtl results\\final.jtl
+                copy results\\web.jtl results\\final.jtl
+
+                powershell -Command "Get-Content results\\api.jtl | Select-Object -Skip 1 | Add-Content results\\final.jtl"
 
                 "%JMETER_HOME%\\bin\\jmeter.bat" -g "results\\final.jtl" -o "report\\aggregate"
 
@@ -136,6 +138,16 @@ pipeline {
                 Compress-Archive -Path report\\api\\* -DestinationPath zipreport\\API_Report.zip -Force
 
                 Compress-Archive -Path report\\aggregate\\* -DestinationPath zipreport\\Aggregate_Report.zip -Force
+                '''
+            }
+        }
+
+        stage('Verify ZIP Reports') {
+            steps {
+
+                bat '''
+                echo ================= ZIP REPORTS =================
+                dir zipreport
                 '''
             }
         }
