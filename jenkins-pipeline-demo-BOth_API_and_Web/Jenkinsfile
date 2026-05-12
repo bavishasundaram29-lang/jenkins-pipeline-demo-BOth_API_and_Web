@@ -1,160 +1,114 @@
 pipeline {
     agent any
 
+    environment {
+        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3"
+    }
+
     stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'main',
+                url: 'https://github.com/bavishasundaram29-lang/jenkins-pipeline-demo-BOth_API_and_Web.git'
+            }
+        }
 
         stage('Clean Workspace') {
             steps {
-                deleteDir()
+                bat '''
+                if exist results rmdir /s /q results
+                if exist report rmdir /s /q report
+
+                mkdir results
+                mkdir report
+                mkdir report\\final
+                '''
             }
         }
 
-        stage('Generate Reports') {
+        stage('Run API + Web Parallel') {
             parallel {
 
-                stage('Web Report') {
+                stage('API Test') {
                     steps {
                         bat """
-                        mkdir report\\web
-                        (
-                        echo ^<html^>
-                        echo ^<body^>
-                        echo ^<h2^>Web Report^</h2^>
-                        echo ^<p^>Web report generated successfully^</p^>
-                        echo ^</body^>
-                        echo ^</html^>
-                        ) > report\\web\\web-report.html
+                        %JMETER_HOME%\\bin\\jmeter.bat -n ^
+                        -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx ^
+                        -l results\\api.jtl
                         """
                     }
                 }
 
-                stage('API Report') {
+                stage('Web Test') {
                     steps {
                         bat """
-                        mkdir report\\api
-                        (
-                        echo ^<html^>
-                        echo ^<body^>
-                        echo ^<h2^>API Report^</h2^>
-                        echo ^<p^>API report generated successfully^</p^>
-                        echo ^</body^>
-                        echo ^</html^>
-                        ) > report\\api\\api-report.html
+                        %JMETER_HOME%\\bin\\jmeter.bat -n ^
+                        -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx ^
+                        -l results\\web.jtl
                         """
                     }
                 }
             }
         }
 
-        stage('Aggregate Report') {
+        stage('Generate Final Report') {
             steps {
-                bat """
-                mkdir report\\aggregate
-                (
-                echo ^<html^>
-                echo ^<body^>
-                echo ^<h2^>Aggregate Report^</h2^>
-                echo ^<table border='1' cellpadding='8'^>
-                echo ^<tr^>^<th^>Module^</th^>^<th^>Status^</th^>^</tr^>
-                echo ^<tr^>^<td^>Web Report^</td^>^<td^>Completed^</td^>^</tr^>
-                echo ^<tr^>^<td^>API Report^</td^>^<td^>Completed^</td^>^</tr^>
-                echo ^</table^>
-                echo ^</body^>
-                echo ^</html^>
-                ) > report\\aggregate\\aggregate.html
-                """
-            }
-        }
+                bat '''
+                if exist report\\final rmdir /s /q report\\final
 
-        stage('Publish to Jenkins UI') {
-            steps {
-
-                publishHTML([
-                    reportDir: 'report/web',
-                    reportFiles: 'web-report.html',
-                    reportName: 'Web Report',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: false
-                ])
-
-                publishHTML([
-                    reportDir: 'report/api',
-                    reportFiles: 'api-report.html',
-                    reportName: 'API Report',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: false
-                ])
-
-                publishHTML([
-                    reportDir: 'report/aggregate',
-                    reportFiles: 'aggregate.html',
-                    reportName: 'Aggregate Report',
-                    keepAll: true,
-                    alwaysLinkToLastBuild: true,
-                    allowMissing: false
-                ])
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
+                '''
             }
         }
     }
 
     post {
 
+        always {
+            archiveArtifacts artifacts: 'results/**, report/**', fingerprint: true
+
+            publishHTML([
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
+                reportDir: 'report/final',
+                reportFiles: 'index.html',
+                reportName: 'JMeter Final Report'
+            ])
+        }
+
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✅ Jenkins Build SUCCESS - Reports Ready",
-                mimeType: "text/html",
+                subject: "✔ Jenkins SUCCESS - API + WEB",
                 body: """
-                <html>
-                <body style="font-family: Arial;">
+Build SUCCESS
 
-                <h2 style="color:green;">🎉 Build Successful</h2>
+✔ API executed
+✔ Web executed
 
-                <h3>📊 Reports</h3>
-                <ul>
-                    <li>✔ Full Web Report → <a href="${BUILD_URL}HTML_Report/Web_Report/">Open Report</a></li>
-                    <li>✔ Full API Report → <a href="${BUILD_URL}HTML_Report/API_Report/">Open Report</a></li>
-                </ul>
+Report attached and available in Jenkins UI
 
-                <h3>📊 Aggregate Table</h3>
-                <table border="1" cellpadding="8">
-                    <tr>
-                        <th>Module</th>
-                        <th>Status</th>
-                    </tr>
-                    <tr>
-                        <td>Web Report</td>
-                        <td>Completed</td>
-                    </tr>
-                    <tr>
-                        <td>API Report</td>
-                        <td>Completed</td>
-                    </tr>
-                </table>
-
-                <h3>📦 Download Links</h3>
-                <ul>
-                    <li><a href="${BUILD_URL}artifact/report/web/web-report.html">Download Web Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/report/api/api-report.html">Download API Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/report/aggregate/aggregate.html">Download Aggregate Report</a></li>
-                    <li><a href="${BUILD_URL}artifact/">Download All Workspace Files</a></li>
-                </ul>
-
-                <p><b>Build:</b> ${JOB_NAME} #${BUILD_NUMBER}</p>
-
-                </body>
-                </html>
-                """
+Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
+""",
+                attachmentsPattern: "report/final/**"
             )
         }
 
         failure {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "❌ Jenkins Build FAILED",
-                body: "Check logs: ${BUILD_URL}"
+                subject: "❌ Jenkins FAILED - API + WEB",
+                body: """
+Build FAILED
+
+Check Jenkins console logs.
+
+Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
+"""
             )
         }
     }
