@@ -58,6 +58,9 @@ pipeline {
         stage('Generate WEB Aggregate Report') {
             steps {
                 bat '''
+                if exist report\\web-aggregate rmdir /s /q report\\web-aggregate
+                mkdir report\\web-aggregate
+
                 "%JMETER%" -g "results\\web.jtl" -o "report\\web-aggregate"
                 '''
             }
@@ -66,6 +69,9 @@ pipeline {
         stage('Generate API Aggregate Report') {
             steps {
                 bat '''
+                if exist report\\api-aggregate rmdir /s /q report\\api-aggregate
+                mkdir report\\api-aggregate
+
                 "%JMETER%" -g "results\\api.jtl" -o "report\\api-aggregate"
                 '''
             }
@@ -75,8 +81,11 @@ pipeline {
             steps {
                 powershell '''
                 Compress-Archive -Path report\\web\\* -DestinationPath zipreport\\WEB_Report.zip -Force
+
                 Compress-Archive -Path report\\api\\* -DestinationPath zipreport\\API_Report.zip -Force
+
                 Compress-Archive -Path report\\web-aggregate\\* -DestinationPath zipreport\\WEB_Aggregate_Report.zip -Force
+
                 Compress-Archive -Path report\\api-aggregate\\* -DestinationPath zipreport\\API_Aggregate_Report.zip -Force
                 '''
             }
@@ -137,7 +146,9 @@ pipeline {
                 def apiRows = ""
 
                 webStats.each { key, value ->
+
                     if (key != 'Total') {
+
                         webRows += """
                         <tr>
                             <td>${key}</td>
@@ -155,7 +166,9 @@ pipeline {
                 }
 
                 apiStats.each { key, value ->
+
                     if (key != 'Total') {
+
                         apiRows += """
                         <tr>
                             <td>${key}</td>
@@ -174,7 +187,9 @@ pipeline {
 
                 emailext(
                     subject: "Jenkins Build Report - ${currentBuild.currentResult}",
+
                     mimeType: 'text/html',
+
                     to: 'bavishasundar@gmail.com',
 
                     body: """
@@ -186,6 +201,7 @@ pipeline {
                     <h2>WEB Aggregate Report</h2>
 
                     <table border="1" cellpadding="5" cellspacing="0">
+
                         <tr>
                             <th>Label</th>
                             <th>Samples</th>
@@ -207,6 +223,7 @@ pipeline {
                     <h2>API Aggregate Report</h2>
 
                     <table border="1" cellpadding="5" cellspacing="0">
+
                         <tr>
                             <th>Label</th>
                             <th>Samples</th>
@@ -225,7 +242,7 @@ pipeline {
 
                     <br><br>
 
-                    <h3>Reports Attached:</h3>
+                    <h3>Attached Reports</h3>
 
                     <ul>
                         <li>WEB_Report.zip</li>
@@ -242,8 +259,8 @@ pipeline {
                 )
             }
 
-            archiveArtifacts artifacts: 'report/**/*, zipreport/*.zip', fingerprint: true
-
+            archiveArtifacts artifacts: 'report/**/*, zipreport/*.zip',
+            fingerprint: true
         }
     }
 }
