@@ -9,41 +9,101 @@ pipeline {
             }
         }
 
-        stage('Create Reports') {
-            parallel {
-
-                stage('Web Report') {
-                    steps {
-                        bat """
-                        mkdir report\\web
-                        echo Web Report Generated Successfully > report\\web\\web-report.html
-                        """
-                    }
-                }
-
-                stage('API Report') {
-                    steps {
-                        bat """
-                        mkdir report\\api
-                        echo API Report Generated Successfully > report\\api\\api-report.html
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('Dashboard') {
+        stage('Create Web Report') {
             steps {
                 bat """
-                mkdir report\\dashboard
-                echo ^<html^>^<body^>Dashboard Generated^</body^>^</html^> > report\\dashboard\\index.html
+                mkdir report\\web
+                (
+                echo ^<html^>
+                echo ^<body^>
+                echo ^<h2^>Web Report^</h2^>
+                echo ^<p style='color:green'^>SUCCESS^</p^>
+                echo ^</body^>
+                echo ^</html^>
+                ) > report\\web\\web-report.html
                 """
             }
         }
 
-        stage('Archive Reports') {
+        stage('Create API Report') {
             steps {
-                archiveArtifacts artifacts: 'report/**', fingerprint: true
+                bat """
+                mkdir report\\api
+                (
+                echo ^<html^>
+                echo ^<body^>
+                echo ^<h2^>API Report^</h2^>
+                echo ^<p style='color:green'^>SUCCESS^</p^>
+                echo ^</body^>
+                echo ^</html^>
+                ) > report\\api\\api-report.html
+                """
+            }
+        }
+
+        stage('Create Dashboard') {
+            steps {
+                bat """
+                mkdir report\\dashboard
+                (
+                echo ^<html^>
+                echo ^<body^>
+                echo ^<h2^>Dashboard^</h2^>
+                echo ^<p^>All Systems OK^</p^>
+                echo ^</body^>
+                echo ^</html^>
+                ) > report\\dashboard\\index.html
+                """
+            }
+        }
+
+        stage('Create Aggregate Report') {
+            steps {
+                bat """
+                mkdir report\\aggregate
+                (
+                echo ^<html^>
+                echo ^<body^>
+                echo ^<h2^>Aggregate Report^</h2^>
+                echo ^<table border='1' cellpadding='8'^>
+                echo ^<tr^>^<th^>Module^</th^>^<th^>Status^</th^>^</tr^>
+                echo ^<tr^>^<td^>Web Report^</td^>^<td^>SUCCESS^</td^>^</tr^>
+                echo ^<tr^>^<td^>API Report^</td^>^<td^>SUCCESS^</td^>^</tr^>
+                echo ^<tr^>^<td^>Dashboard^</td^>^<td^>SUCCESS^</td^>^</tr^>
+                echo ^</table^>
+                echo ^</body^>
+                echo ^</html^>
+                ) > report\\aggregate\\aggregate.html
+                """
+            }
+        }
+
+        stage('Publish Reports to Jenkins UI') {
+            steps {
+
+                publishHTML([
+                    reportDir: 'report/web',
+                    reportFiles: 'web-report.html',
+                    reportName: 'Web Report'
+                ])
+
+                publishHTML([
+                    reportDir: 'report/api',
+                    reportFiles: 'api-report.html',
+                    reportName: 'API Report'
+                ])
+
+                publishHTML([
+                    reportDir: 'report/dashboard',
+                    reportFiles: 'index.html',
+                    reportName: 'Dashboard'
+                ])
+
+                publishHTML([
+                    reportDir: 'report/aggregate',
+                    reportFiles: 'aggregate.html',
+                    reportName: 'Aggregate Report'
+                ])
             }
         }
     }
@@ -54,18 +114,47 @@ pipeline {
             emailext (
                 to: "bavishasundar@gmail.com",
                 subject: "✅ Jenkins Build SUCCESS - Reports Ready",
+                mimeType: "text/html",
                 body: """
-                🎉 Build Successful: ${JOB_NAME} #${BUILD_NUMBER}
+                <html>
+                <body style="font-family: Arial;">
 
-                📊 Reports Generated:
-                - Web Report
-                - API Report
-                - Dashboard
+                <h2 style="color:green;">🎉 Build Successful</h2>
 
-                📦 Download Artifacts:
-                ${BUILD_URL}artifact/report/
+                <h3>📊 Aggregate Report</h3>
 
-                ✔ Open Jenkins build to access all reports.
+                <table border="1" cellpadding="8">
+                    <tr>
+                        <th>Module</th>
+                        <th>Status</th>
+                    </tr>
+                    <tr>
+                        <td>Web Report</td>
+                        <td>SUCCESS</td>
+                    </tr>
+                    <tr>
+                        <td>API Report</td>
+                        <td>SUCCESS</td>
+                    </tr>
+                    <tr>
+                        <td>Dashboard</td>
+                        <td>SUCCESS</td>
+                    </tr>
+                </table>
+
+                <h3>📦 Download Reports</h3>
+                <ul>
+                    <li><a href="${BUILD_URL}HTML_Report/Web_Report/">Open Web Report (Jenkins UI)</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/API_Report/">Open API Report (Jenkins UI)</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/Dashboard/">Open Dashboard (Jenkins UI)</a></li>
+                    <li><a href="${BUILD_URL}HTML_Report/Aggregate_Report/">Open Aggregate Report</a></li>
+                    <li><a href="${BUILD_URL}artifact/">Download All Workspace Files</a></li>
+                </ul>
+
+                <p><b>Build:</b> ${JOB_NAME} #${BUILD_NUMBER}</p>
+
+                </body>
+                </html>
                 """
             )
         }
@@ -74,12 +163,7 @@ pipeline {
             emailext (
                 to: "bavishasundar@gmail.com",
                 subject: "❌ Jenkins Build FAILED",
-                body: """
-                Build Failed: ${JOB_NAME} #${BUILD_NUMBER}
-
-                Check logs:
-                ${BUILD_URL}
-                """
+                body: "Check logs: ${BUILD_URL}"
             )
         }
     }
