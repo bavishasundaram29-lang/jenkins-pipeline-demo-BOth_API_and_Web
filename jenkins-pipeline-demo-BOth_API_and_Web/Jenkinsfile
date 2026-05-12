@@ -21,16 +21,13 @@ pipeline {
                 if exist report rmdir /s /q report
 
                 mkdir results
-
                 mkdir report
-                mkdir report\\api
-                mkdir report\\web
+                mkdir report\\final
                 '''
             }
         }
 
         stage('Run API + Web Parallel') {
-
             parallel {
 
                 stage('API Test') {
@@ -38,8 +35,7 @@ pipeline {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t jenkins-pipeline-demo-BOth_API_and_Web/api/api_script.jmx ^
-                        -l results\\api.jtl ^
-                        -e -o report\\api
+                        -l results\\api.jtl
                         """
                     }
                 }
@@ -49,11 +45,20 @@ pipeline {
                         bat """
                         %JMETER_HOME%\\bin\\jmeter.bat -n ^
                         -t jenkins-pipeline-demo-BOth_API_and_Web/web/SCR01_Jpetstore.jmx ^
-                        -l results\\web.jtl ^
-                        -e -o report\\web
+                        -l results\\web.jtl
                         """
                     }
                 }
+            }
+        }
+
+        stage('Generate Final Report') {
+            steps {
+                bat '''
+                if exist report\\final rmdir /s /q report\\final
+
+                %JMETER_HOME%\\bin\\jmeter.bat -g results\\api.jtl -o report\\final
+                '''
             }
         }
     }
@@ -61,83 +66,48 @@ pipeline {
     post {
 
         always {
-
             archiveArtifacts artifacts: 'results/**, report/**', fingerprint: true
 
-            // API Report in Jenkins UI
             publishHTML([
                 allowMissing: false,
                 alwaysLinkToLastBuild: true,
                 keepAll: true,
-                reportDir: 'report/api',
+                reportDir: 'report/final',
                 reportFiles: 'index.html',
-                reportName: 'API JMeter Report'
-            ])
-
-            // WEB Report in Jenkins UI
-            publishHTML([
-                allowMissing: false,
-                alwaysLinkToLastBuild: true,
-                keepAll: true,
-                reportDir: 'report/web',
-                reportFiles: 'index.html',
-                reportName: 'WEB JMeter Report'
+                reportName: 'JMeter Final Report'
             ])
         }
 
         success {
-
-            emailext(
+            emailext (
                 to: "bavishasundar@gmail.com",
-
-                subject: "✔ Jenkins SUCCESS - API + WEB Reports",
-
+                subject: "✔ Jenkins SUCCESS - API + WEB",
                 body: """
 Build SUCCESS
 
-✔ API Test Executed
-✔ WEB Test Executed
+✔ API executed
+✔ Web executed
 
-Separate reports generated successfully.
+Report attached and available in Jenkins UI
 
-Reports Available:
-- API Report
-- WEB Report
-
-Reports are available in:
-1. Jenkins UI
-2. Jenkins Workspace
-3. Email Attachments
-
-Job Name : ${env.JOB_NAME}
-Build No : ${env.BUILD_NUMBER}
-Build URL: ${env.BUILD_URL}
+Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
 """,
-
-                mimeType: 'text/plain',
-
-                attachmentsPattern: """
-report/api/**,
-report/web/**
-"""
+                attachmentsPattern: "report/final/**"
             )
         }
 
         failure {
-
-            emailext(
+            emailext (
                 to: "bavishasundar@gmail.com",
-
                 subject: "❌ Jenkins FAILED - API + WEB",
-
                 body: """
 Build FAILED
 
-Check Jenkins Console Output for errors.
+Check Jenkins console logs.
 
-Job Name : ${env.JOB_NAME}
-Build No : ${env.BUILD_NUMBER}
-Build URL: ${env.BUILD_URL}
+Job: ${env.JOB_NAME}
+Build: ${env.BUILD_NUMBER}
 """
             )
         }
