@@ -1,73 +1,49 @@
 pipeline {
     agent any
 
-    environment {
-        REPORT_DIR = "report"
-        WEB_DIR = "report\\web"
-        API_DIR = "report\\api"
-        DASHBOARD_DIR = "report\\dashboard"
-        ZIP_DIR = "report\\zips"
-    }
-
     stages {
 
         stage('Clean Workspace') {
             steps {
-                bat 'if exist report rmdir /s /q report'
+                deleteDir()
             }
         }
 
-        stage('Create Directories') {
+        stage('Create Reports') {
+            parallel {
+
+                stage('Web Report') {
+                    steps {
+                        bat """
+                        mkdir report\\web
+                        echo Web Report Generated Successfully > report\\web\\web-report.html
+                        """
+                    }
+                }
+
+                stage('API Report') {
+                    steps {
+                        bat """
+                        mkdir report\\api
+                        echo API Report Generated Successfully > report\\api\\api-report.html
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Dashboard') {
             steps {
                 bat """
-                if not exist report mkdir report
-                if not exist report\\web mkdir report\\web
-                if not exist report\\api mkdir report\\api
-                if not exist report\\dashboard mkdir report\\dashboard
-                if not exist report\\zips mkdir report\\zips
+                mkdir report\\dashboard
+                echo ^<html^>^<body^>Dashboard Generated^</body^>^</html^> > report\\dashboard\\index.html
                 """
             }
         }
 
-        stage('Build Web Report') {
+        stage('Archive Reports') {
             steps {
-                bat """
-                echo Generating Web Report...
-                echo Web Report Generated Successfully > report\\web\\web-report.html
-                """
-            }
-        }
-
-        stage('Build API Report') {
-            steps {
-                bat """
-                echo Generating API Report...
-                echo API Report Generated Successfully > report\\api\\api-report.html
-                """
-            }
-        }
-
-        stage('Create Dashboard') {
-            steps {
-                bat """
-                echo ^<html^> > report\\dashboard\\index.html
-                echo ^<head^>^<title^>Jenkins Dashboard^</title^>^</head^> >> report\\dashboard\\index.html
-                echo ^<body^> >> report\\dashboard\\index.html
-                echo ^<h1 style='color:blue;' ^>Test Dashboard^</h1^> >> report\\dashboard\\index.html
-                echo ^<p^>✔ Web Report Generated^</p^> >> report\\dashboard\\index.html
-                echo ^<p^>✔ API Report Generated^</p^> >> report\\dashboard\\index.html
-                echo ^</body^> >> report\\dashboard\\index.html
-                echo ^</html^> >> report\\dashboard\\index.html
-                """
-            }
-        }
-
-        stage('Zip Reports') {
-            steps {
-                bat """
-                powershell Compress-Archive -Path report\\web\\* -DestinationPath report\\zips\\web.zip -Force
-                powershell Compress-Archive -Path report\\api\\* -DestinationPath report\\zips\\api.zip -Force
-                """
+                archiveArtifacts artifacts: 'report/**', fingerprint: true
             }
         }
     }
@@ -77,34 +53,19 @@ pipeline {
         success {
             emailext (
                 to: "bavishasundar@gmail.com",
-                subject: "✅ Jenkins Build SUCCESS - Web & API Reports",
-                mimeType: 'text/html',
+                subject: "✅ Jenkins Build SUCCESS - Reports Ready",
                 body: """
-                <html>
-                <body style="font-family: Arial;">
+                🎉 Build Successful: ${JOB_NAME} #${BUILD_NUMBER}
 
-                    <h2 style="color:green;">🎉 Jenkins Build Successful</h2>
+                📊 Reports Generated:
+                - Web Report
+                - API Report
+                - Dashboard
 
-                    <h3>📊 Reports Generated</h3>
-                    <ul>
-                        <li>Web Report: report/web/web-report.html</li>
-                        <li>API Report: report/api/api-report.html</li>
-                        <li>Dashboard: report/dashboard/index.html</li>
-                    </ul>
+                📦 Download Artifacts:
+                ${BUILD_URL}artifact/report/
 
-                    <h3>📦 ZIP Files</h3>
-                    <ul>
-                        <li>report/zips/web.zip</li>
-                        <li>report/zips/api.zip</li>
-                    </ul>
-
-                    <p>✔ Build completed successfully in Jenkins workspace.</p>
-
-                    <hr>
-                    <p style="color:gray;">Regards,<br>Jenkins Pipeline</p>
-
-                </body>
-                </html>
+                ✔ Open Jenkins build to access all reports.
                 """
             )
         }
@@ -113,26 +74,13 @@ pipeline {
             emailext (
                 to: "bavishasundar@gmail.com",
                 subject: "❌ Jenkins Build FAILED",
-                mimeType: 'text/html',
                 body: """
-                <html>
-                <body style="font-family: Arial;">
+                Build Failed: ${JOB_NAME} #${BUILD_NUMBER}
 
-                    <h2 style="color:red;">Jenkins Build Failed</h2>
-
-                    <p>Please check Jenkins console output for errors.</p>
-
-                    <hr>
-                    <p style="color:gray;">Regards,<br>Jenkins Pipeline</p>
-
-                </body>
-                </html>
+                Check logs:
+                ${BUILD_URL}
                 """
             )
-        }
-
-        always {
-            archiveArtifacts artifacts: 'report/**', fingerprint: true
         }
     }
 }
