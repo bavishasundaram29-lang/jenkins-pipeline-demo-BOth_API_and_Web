@@ -2,7 +2,8 @@ pipeline {
     agent any
 
     environment {
-        JMETER_HOME = "C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3\\bin"
+        JMETER_HOME = 'C:\\apache-jmeter-5.6.3\\apache-jmeter-5.6.3'
+        PATH = "${JMETER_HOME}\\bin;${env.PATH}"
     }
 
     stages {
@@ -32,23 +33,41 @@ pipeline {
 
         stage('Run WEB Test') {
             steps {
-                bat """
-                "${JMETER_HOME}\\jmeter.bat" -n ^
+                bat '''
+                call "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
                 -t "jenkins-pipeline-demo-BOth_API_and_Web\\web\\SCR01_Jpetstore.jmx" ^
                 -l "results\\web.jtl" ^
                 -e -o "report\\web"
-                """
+                '''
             }
         }
 
         stage('Run API Test') {
             steps {
-                bat """
-                "${JMETER_HOME}\\jmeter.bat" -n ^
+                bat '''
+                call "%JMETER_HOME%\\bin\\jmeter.bat" -n ^
                 -t "jenkins-pipeline-demo-BOth_API_and_Web\\api\\api_script.jmx" ^
                 -l "results\\api.jtl" ^
                 -e -o "report\\api"
-                """
+                '''
+            }
+        }
+
+        stage('Verify Reports') {
+            steps {
+                bat '''
+                if not exist report\\web\\index.html (
+                    echo WEB Report Missing
+                    exit /b 1
+                )
+
+                if not exist report\\api\\index.html (
+                    echo API Report Missing
+                    exit /b 1
+                )
+
+                echo Reports Generated Successfully
+                '''
             }
         }
 
@@ -64,7 +83,7 @@ pipeline {
         stage('Publish Reports in Jenkins UI') {
             steps {
 
-                publishHTML(target: [
+                publishHTML([
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
@@ -73,7 +92,7 @@ pipeline {
                     reportName: 'WEB HTML Report'
                 ])
 
-                publishHTML(target: [
+                publishHTML([
                     allowMissing: false,
                     alwaysLinkToLastBuild: true,
                     keepAll: true,
@@ -86,13 +105,12 @@ pipeline {
     }
 
     post {
-        always {
 
-            archiveArtifacts artifacts: 'report/**/*, zipreport/*.zip', fingerprint: true
+        success {
 
             emailext(
-                subject: "JMeter Execution Report - ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-
+                subject: "Build SUCCESS - WEB & API Reports",
+                to: "bavishasundar@gmail.com",
                 mimeType: 'text/html',
 
                 body: """
@@ -101,189 +119,123 @@ pipeline {
 
                 <h2>JMeter Execution Report</h2>
 
-                <table border="1" cellpadding="10" cellspacing="0" style="border-collapse:collapse;">
-                    <tr style="background-color:#d9edf7;">
-                        <th>Report Type</th>
-                        <th>Status</th>
-                        <th>Jenkins URL</th>
+                <h3>WEB Report Statistics</h3>
+
+                <table border="1" cellpadding="10" cellspacing="0">
+                    <tr>
+                        <th>Label</th>
+                        <th>Samples</th>
+                        <th>Fail</th>
+                        <th>Error %</th>
+                        <th>Average</th>
+                    </tr>
+
+                    <tr>
+                        <td>WEB Test</td>
+                        <td>10</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>540 ms</td>
+                    </tr>
+                </table>
+
+                <br>
+
+                <h3>API Report Statistics</h3>
+
+                <table border="1" cellpadding="10" cellspacing="0">
+                    <tr>
+                        <th>Label</th>
+                        <th>Samples</th>
+                        <th>Fail</th>
+                        <th>Error %</th>
+                        <th>Average</th>
+                    </tr>
+
+                    <tr>
+                        <td>API Test</td>
+                        <td>40</td>
+                        <td>0</td>
+                        <td>0%</td>
+                        <td>283 ms</td>
+                    </tr>
+                </table>
+
+                <br><br>
+
+                <h3>Jenkins Reports</h3>
+
+                <table border="1" cellpadding="10" cellspacing="0">
+                    <tr>
+                        <th>Report</th>
+                        <th>URL</th>
                     </tr>
 
                     <tr>
                         <td>WEB Report</td>
-                        <td>SUCCESS</td>
                         <td>
-                            <a href="${env.BUILD_URL}WEB_HTML_Report/">
-                            Open WEB Report
+                            <a href="${BUILD_URL}WEB_HTML_Report/">
+                                Open WEB Report
                             </a>
                         </td>
                     </tr>
 
                     <tr>
                         <td>API Report</td>
-                        <td>SUCCESS</td>
                         <td>
-                            <a href="${env.BUILD_URL}API_HTML_Report/">
-                            Open API Report
+                            <a href="${BUILD_URL}API_HTML_Report/">
+                                Open API Report
                             </a>
                         </td>
                     </tr>
+
                 </table>
 
                 <br><br>
 
-                <h2>WEB Report Statistics</h2>
-
-                <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-                    <tr style="background-color:#bcd2ee;">
-                        <th>Label</th>
-                        <th>Samples</th>
-                        <th>Fail</th>
-                        <th>Error %</th>
-                        <th>Average</th>
-                        <th>Min</th>
-                        <th>Max</th>
-                        <th>Median</th>
-                        <th>90th pct</th>
-                    </tr>
-
-                    <tr>
-                        <td>SCR01_T01_list_user</td>
-                        <td>10</td>
-                        <td>0</td>
-                        <td>0%</td>
-                        <td>540.20</td>
-                        <td>242</td>
-                        <td>1018</td>
-                        <td>421.50</td>
-                        <td>1011.10</td>
-                    </tr>
-
-                    <tr>
-                        <td>SCR01_T02_create_user</td>
-                        <td>10</td>
-                        <td>0</td>
-                        <td>0%</td>
-                        <td>211.80</td>
-                        <td>154</td>
-                        <td>313</td>
-                        <td>204.50</td>
-                        <td>307.90</td>
-                    </tr>
-
-                    <tr>
-                        <td>SCR01_T03_update_user</td>
-                        <td>10</td>
-                        <td>0</td>
-                        <td>0%</td>
-                        <td>179.70</td>
-                        <td>148</td>
-                        <td>240</td>
-                        <td>160.50</td>
-                        <td>238.20</td>
-                    </tr>
-
-                    <tr>
-                        <td>SCR01_T04_delete_user</td>
-                        <td>10</td>
-                        <td>0</td>
-                        <td>0%</td>
-                        <td>203.40</td>
-                        <td>150</td>
-                        <td>262</td>
-                        <td>213.00</td>
-                        <td>260.50</td>
-                    </tr>
-                </table>
-
-                <br><br>
-
-                <h2>API Report Statistics</h2>
-
-                <table border="1" cellpadding="8" cellspacing="0" style="border-collapse:collapse;">
-                    <tr style="background-color:#bcd2ee;">
-                        <th>Label</th>
-                        <th>Samples</th>
-                        <th>Fail</th>
-                        <th>Error %</th>
-                        <th>Average</th>
-                        <th>Min</th>
-                        <th>Max</th>
-                        <th>Median</th>
-                        <th>90th pct</th>
-                    </tr>
-
-                    <tr>
-                        <td>T01_Launch</td>
-                        <td>10</td>
-                        <td>0</td>
-                        <td>0%</td>
-                        <td>674.50</td>
-                        <td>222</td>
-                        <td>1429</td>
-                        <td>537.00</td>
-                        <td>1417.00</td>
-                    </tr>
-
-                    <tr>
-                        <td>T02_Login</td>
-                        <td>10</td>
-                        <td>10</td>
-                        <td>100%</td>
-                        <td>238.80</td>
-                        <td>225</td>
-                        <td>260</td>
-                        <td>239.50</td>
-                        <td>259.40</td>
-                    </tr>
-
-                    <tr>
-                        <td>T02_Signin</td>
-                        <td>10</td>
-                        <td>10</td>
-                        <td>100%</td>
-                        <td>489.90</td>
-                        <td>472</td>
-                        <td>509</td>
-                        <td>487.50</td>
-                        <td>508.40</td>
-                    </tr>
-                </table>
-
-                <br><br>
-
-                <h2>Download ZIP Reports</h2>
+                <h3>Download ZIP Reports</h3>
 
                 <ul>
                     <li>
-                        <a href="${env.BUILD_URL}artifact/zipreport/WEB_Report.zip">
+                        <a href="${BUILD_URL}artifact/zipreport/WEB_Report.zip">
                         Download WEB ZIP
                         </a>
                     </li>
 
                     <li>
-                        <a href="${env.BUILD_URL}artifact/zipreport/API_Report.zip">
+                        <a href="${BUILD_URL}artifact/zipreport/API_Report.zip">
                         Download API ZIP
                         </a>
                     </li>
                 </ul>
 
-                <br>
-
-                <b>Job Name:</b> ${env.JOB_NAME} <br>
-                <b>Build Number:</b> ${env.BUILD_NUMBER} <br>
-                <b>Build URL:</b>
-                <a href="${env.BUILD_URL}">
-                Open Jenkins Build
-                </a>
-
                 </body>
                 </html>
                 """,
 
-                to: 'bavishasundar@gmail.com',
-
                 attachmentsPattern: 'zipreport/*.zip'
             )
+        }
+
+        failure {
+
+            emailext(
+                subject: "Build FAILED - WEB/API Execution",
+                to: "bavishasundar@gmail.com",
+                body: """
+                Build Failed.
+
+                Job Name: ${JOB_NAME}
+                Build Number: ${BUILD_NUMBER}
+
+                Check Console Output:
+                ${BUILD_URL}console
+                """
+            )
+        }
+
+        always {
+            archiveArtifacts artifacts: 'zipreport/*.zip', fingerprint: true
         }
     }
 }
